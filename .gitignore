@@ -89,6 +89,7 @@ id_rsa*
 id_ed25519*
 
 # Local caches and generated metadata
+.atl/
 .atl/*.cache.json
 .tmp/
 tmp/

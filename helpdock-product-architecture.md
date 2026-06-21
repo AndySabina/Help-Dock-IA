@@ -204,6 +204,8 @@ The parser suite is not ready unless tests fail first and then pass with isolati
 
 The dashboard requires authentication from the first release.
 
+The approved first-release RBAC baseline is documented in `docs/decisions/0003-security-secrets-rbac-and-multi-tenancy.md`. It explicitly maps Owner, Admin, Agent, Operator, Compliance Reviewer, Viewer, and Widget User / End User permissions for runbooks, system health, metrics, processor operations, deletion/privacy requests, and audit/review operations.
+
 Production setup requires `SETUP_TOKEN`:
 
 - single-use or disabled after first manager/admin creation,

@@ -1,0 +1,23 @@
+name: Public safety
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  public-safety:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Run public safety scan
+        run: bash scripts/check-public-safe.sh --all
+
+      - name: Run public safety regression tests
+        run: bash scripts/test-check-public-safe.sh

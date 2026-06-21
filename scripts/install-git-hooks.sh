@@ -9,13 +9,13 @@ mkdir -p .git/hooks
 cat > .git/hooks/pre-commit <<'HOOK'
 #!/usr/bin/env bash
 set -euo pipefail
-scripts/check-public-safe.sh
+scripts/check-public-safe.sh --staged
 HOOK
 
 cat > .git/hooks/pre-push <<'HOOK'
 #!/usr/bin/env bash
 set -euo pipefail
-scripts/check-public-safe.sh
+scripts/check-public-safe.sh --all
 HOOK
 
 chmod +x .git/hooks/pre-commit .git/hooks/pre-push

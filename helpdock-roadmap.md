@@ -9,6 +9,7 @@ This roadmap turns the approved HelpDock AI product concept, architecture baseli
 | `helpdock-ai.md` | Original product concept and hardened constraints. |
 | `helpdock-product-architecture.md` | Approved architecture baseline; Judgment Day Round 19 approved. |
 | `helpdock-product-requirements.md` | Approved PRD; Judgment Day PRD Round 3 approved. |
+| `docs/decisions/0001-0005` | Phase 0 approved decision baseline for Phase 1 planning. |
 
 ## Roadmap principles
 
@@ -49,20 +50,21 @@ Resolve the release-blocking decisions that would otherwise cause architectural 
 - Define first-release RBAC roles and permissions.
 - Define default retention windows.
 - Choose first supported model, embedding, email, tracing, storage, and vector database providers.
-- Define evidence thresholds, eval pass/fail thresholds, escalation thresholds, cost caps, and hallucination regression limits.
-- Define the first-release documentation gap SLA.
+- Define evidence thresholds, eval pass/fail thresholds, escalation thresholds, cost caps, and hallucination regression limits in `docs/decisions/0004-rag-retention-deletion-replay-and-release-thresholds.md` under `Release thresholds`, `First-release cost caps`, and `Hallucination regression blocking threshold`.
+- Define the first-release documentation gap SLA in `docs/decisions/0004-rag-retention-deletion-replay-and-release-thresholds.md` under `Documentation gap SLA`.
 
 ### Deliverables
 
-- `docs/decisions/0001-technical-stack.md`
-- `docs/decisions/0002-rbac-baseline.md`
-- `docs/decisions/0003-retention-policy.md`
-- `docs/decisions/0004-provider-baseline.md`
-- `docs/decisions/0005-release-thresholds.md`
+- `docs/decisions/0001-self-hosted-foundation-and-llm-boundary.md`
+- `docs/decisions/0002-data-platform-and-provider-baseline.md`
+- `docs/decisions/0003-security-secrets-rbac-and-multi-tenancy.md`
+- `docs/decisions/0004-rag-retention-deletion-replay-and-release-thresholds.md`
+- `docs/decisions/0005-quality-gates-public-safety-and-phase-1-readiness.md`
 
 ### Exit criteria
 
-- All release-blocking PRD questions have an approved first-release answer.
+- All release-blocking PRD questions have an approved first-release answer, including the concrete `docs/decisions/0004-rag-retention-deletion-replay-and-release-thresholds.md` cost caps, hallucination regression blocker, and documentation gap SLA.
+- Phase 0 decision docs exist in `docs/decisions/0001-0005` and are the repo source of truth for Phase 1 planning.
 - The chosen stack supports Docker Compose, CI, background jobs, migrations, and test isolation.
 - The review scope for Phase 1 is clear.
 

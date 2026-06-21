@@ -14,7 +14,13 @@ scripts/install-git-hooks.sh
 The hooks run:
 
 ```bash
-scripts/check-public-safe.sh
+scripts/check-public-safe.sh --staged
+```
+
+CI runs the same harness in full tracked-tree mode:
+
+```bash
+scripts/check-public-safe.sh --all
 ```
 
 This check blocks common private or unsafe files, including:
@@ -23,7 +29,12 @@ This check blocks common private or unsafe files, including:
 - private keys and certificates,
 - local cache files such as `.atl/*.cache.json`,
 - logs and OS-generated files,
-- common secret/token patterns in staged text files.
+- dump, backup, archive, and unsupported package-manager lockfiles,
+- common secret/token patterns and machine-local absolute paths in scanned text files.
+
+## Strict TDD delivery gate
+
+Strict TDD is a project policy for central product invariants. Phase 0 has no application test runner yet, so this repository only carries the policy and public-safety checks. Phase 1 must add the executable app/test harness before shipping product code that depends on those invariants.
 
 ## Rules for public commits
 

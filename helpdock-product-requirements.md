@@ -4,8 +4,8 @@
 
 - Status: Draft PRD derived from the approved HelpDock AI product/architecture baseline.
 - Source docs:
-  - `/home/andyf/proyects/proyect-dev/help-dock/helpdock-ai.md`
-  - `/home/andyf/proyects/proyect-dev/help-dock/helpdock-product-architecture.md`
+  - `helpdock-ai.md`
+  - `helpdock-product-architecture.md`
 - Architecture review baseline: Judgment Day Round 19 approved with zero blocking issues.
 - PRD review baseline: Judgment Day PRD Round 3 approved with zero blocking issues.
 - Artifact store: Engram, topic key `sdd/helpdock-ai/prd`.
@@ -298,13 +298,12 @@ HelpDock AI must provide trustworthy support automation: grounded answers, clear
 
 ## Open questions / future decisions
 
-Release-blocking before production activation:
+Resolved Phase 0 release-blocking decisions:
 
-- What exact role model should ship first beyond manager/admin/support agent/operator?
-- What are the default retention windows for conversations, tickets, eval traces, answer traces, audit references, exports, quarantine results, and runbook evidence?
-- What thresholds define sufficient evidence, eval pass/fail, escalation, cost caps, and hallucination regression blocking?
-- Which model, embedding, email, tracing, storage, and vector database processors should be supported first?
-- What is the first-release SLA for documentation gap ownership, approval, and closure?
+- Role model, RBAC permissions, Operator mapping, and Compliance Reviewer mapping are accepted in `docs/decisions/0003-security-secrets-rbac-and-multi-tenancy.md`.
+- Retention windows, RAG evidence thresholds, eval pass/fail thresholds, escalation behavior, deletion replay, cost caps, hallucination regression blocking, and documentation gap SLA are accepted in `docs/decisions/0004-rag-retention-deletion-replay-and-release-thresholds.md` under `Retention defaults`, `Release thresholds`, `First-release cost caps`, `Hallucination regression blocking threshold`, and `Documentation gap SLA`.
+- Model, embedding, email, tracing, storage, and vector database provider defaults are accepted in `docs/decisions/0002-data-platform-and-provider-baseline.md`.
+- Quality gates, public-safety expectations, and Phase 1 readiness gates are accepted in `docs/decisions/0005-quality-gates-public-safety-and-phase-1-readiness.md`.
 
 Future/product expansion decisions:
 
