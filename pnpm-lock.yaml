@@ -33,42 +33,6 @@ importers:
         specifier: ^4.0.15
         version: 4.1.9(@types/node@24.13.2)(@vitest/coverage-v8@4.1.9)(vite@8.0.16(@types/node@24.13.2))
 
-  apps/admin:
-    dependencies:
-      '@helpdock/config':
-        specifier: workspace:*
-        version: link:../../packages/config
-      '@helpdock/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
-
-  apps/api:
-    dependencies:
-      '@helpdock/config':
-        specifier: workspace:*
-        version: link:../../packages/config
-      '@helpdock/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
-
-  apps/widget:
-    dependencies:
-      '@helpdock/config':
-        specifier: workspace:*
-        version: link:../../packages/config
-      '@helpdock/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
-
-  apps/worker:
-    dependencies:
-      '@helpdock/config':
-        specifier: workspace:*
-        version: link:../../packages/config
-      '@helpdock/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
-
   packages/config:
     dependencies:
       zod:
