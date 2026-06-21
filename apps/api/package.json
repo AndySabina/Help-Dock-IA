@@ -1,0 +1,17 @@
+{
+  "name": "@helpdock/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "start": "node --experimental-strip-types src/server.ts"
+  },
+  "dependencies": {
+    "@helpdock/config": "workspace:*",
+    "@helpdock/shared": "workspace:*"
+  }
+}

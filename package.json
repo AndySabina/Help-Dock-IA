@@ -8,12 +8,14 @@
   },
   "scripts": {
     "lint": "turbo run lint",
-    "format": "prettier --check package.json turbo.json tsconfig.base.json \"packages/**/*.{json,ts}\"",
-    "format:write": "prettier --write package.json turbo.json tsconfig.base.json \"packages/**/*.{json,ts}\"",
+    "format": "prettier --check package.json turbo.json tsconfig.base.json docker-compose.yml \"apps/**/*.{json,ts}\" \"packages/**/*.{json,ts}\" scripts/compose-smoke.mjs scripts/compose-smoke.test.mjs",
+    "format:write": "prettier --write package.json turbo.json tsconfig.base.json docker-compose.yml \"apps/**/*.{json,ts}\" \"packages/**/*.{json,ts}\" scripts/compose-smoke.mjs scripts/compose-smoke.test.mjs",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",
-    "public-safe": "scripts/check-public-safe.sh --all"
+    "public-safe": "scripts/check-public-safe.sh --all",
+    "compose:smoke": "node scripts/compose-smoke.mjs",
+    "compose:smoke:test": "node --test scripts/compose-smoke.test.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
