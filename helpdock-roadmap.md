@@ -1,6 +1,23 @@
-# HelpDock AI — Professional Development Roadmap
+# HelpDock AI — Development Roadmap
 
-This roadmap turns the approved HelpDock AI product concept, architecture baseline, and PRD into an execution plan. It is intentionally phased so the project can grow step by step without compromising the core security, privacy, and reliability constraints.
+This roadmap is the planning and review index for HelpDock AI. It keeps phase order, commitments, exit criteria, and review boundaries visible while delegating detailed architecture decisions to the approved source documents.
+
+## Current status
+
+| Area | Status | Next action |
+| --- | --- | --- |
+| Phase 0 foundation decisions | Complete — committed in `c8ac4a5` | Use `docs/decisions/0001-0005` as the Phase 1 planning baseline. |
+| Product implementation | Not started | Begin Phase 1 only; do not skip directly to product features. |
+| Public production traffic | Not allowed | Wait until Phase 13 release gates and operational evidence are complete. |
+
+## Executive index
+
+| Reader need | Start here | Why |
+| --- | --- | --- |
+| Understand what gets built next | [Phase overview](#phase-overview) → [Phase 1](#phase-1--project-skeleton) | Shows current sequence and immediate implementation target. |
+| Review accepted architecture decisions | [Decision baseline](#decision-baseline) | Links to ADRs instead of repeating their details here. |
+| Plan a reviewable PR | [Suggested implementation slices](#suggested-implementation-slices) | Keeps work below the 400 changed-line review budget. |
+| Check release readiness | [Phase 13](#phase-13--production-release-hardening) and [cross-phase invariant suites](#cross-phase-invariant-suites) | Defines the evidence required before production activation. |
 
 ## Source baseline
 
@@ -11,34 +28,47 @@ This roadmap turns the approved HelpDock AI product concept, architecture baseli
 | `helpdock-product-requirements.md` | Approved PRD; Judgment Day PRD Round 3 approved. |
 | `docs/decisions/0001-0005` | Phase 0 approved decision baseline for Phase 1 planning. |
 
-## Roadmap principles
+## Decision baseline
+
+| Decision | Use it for |
+| --- | --- |
+| `docs/decisions/0001-self-hosted-foundation-and-llm-boundary.md` | Self-hosted boundary, external LLM consent boundary, public repo safety expectations. |
+| `docs/decisions/0002-data-platform-and-provider-baseline.md` | TypeScript monorepo stack, Docker Compose baseline, providers, embeddings, data stores. |
+| `docs/decisions/0003-security-secrets-rbac-and-multi-tenancy.md` | First-release roles, permission baseline, tenant/workspace/site/widget scoping, secrets policy. |
+| `docs/decisions/0004-rag-retention-deletion-replay-and-release-thresholds.md` | Retention defaults, RAG thresholds, cost caps, hallucination regression gate, documentation gap SLA. |
+| `docs/decisions/0005-quality-gates-public-safety-and-phase-1-readiness.md` | Phase 1 readiness, public-safety gates, strict TDD expectations, release exception rules. |
+
+## Operating principles
 
 - Build the boring foundation before the impressive AI features.
 - Treat self-hosting, scope isolation, visibility gates, RBAC, audit safety, and deletion replay as first-class product features.
 - Use strict failing-test-first TDD for central security and privacy invariants.
 - Keep each phase independently reviewable and shippable.
+- Keep this roadmap focused on planning; detailed architecture belongs in the source baseline and ADRs above.
 - Do not activate public production traffic until release gates and operational evidence are ready.
 
 ## Phase overview
 
-| Phase | Outcome | Primary focus |
-| --- | --- | --- |
-| 0. Foundation decisions | Resolve release-blocking unknowns before implementation. | Stack, roles, retention, providers, thresholds. |
-| 1. Project skeleton | Create the deployable application foundation. | Monorepo/app setup, Docker Compose, CI, test harness. |
-| 2. Core data model, tenancy, and governance foundations | Establish safe data boundaries and pre-feature privacy/security foundations. | Scope, migrations, repositories, minimal audit, integrity-protected deletion ledger, processor lifecycle gating, token exceptions. |
-| 3. Auth, setup, and RBAC | Secure internal access from day one. | Setup token, dashboard auth, backend authorization, audit emission. |
-| 4. Document ingestion | Load knowledge safely. | Uploads, parser isolation, documents, chunks, embeddings metadata gated by processor consent. |
-| 5. RAG answer engine | Answer only with eligible evidence. | Scoped retrieval, visibility filters, refusal behavior, traces. |
-| 6. Public widget | Expose the customer-facing experience safely. | Widget UI, sessions, action tokens, rate limits, abuse controls. |
-| 7. Ticketing and queues | Escalate unresolved conversations. | Ticket creation, scoped access, agent queues, manager controls. |
-| 8. Admin dashboard | Operate the system. | Documents, tickets, conversations, gaps, metrics, settings. |
-| 9. Gaps, evals, and quality | Improve answer quality continuously. | Gap workflow, eval datasets, quality gates, cost/latency metrics. |
-| 10. External processor operations | Expand processor governance operations. | Dashboards, operational visibility, review workflows, runbook evidence. |
-| 11. Audit, exports, and privacy operations | Make compliance operations real. | Audit viewer, exports, deletion/anonymization workflow using the verified deletion ledger and Phase 2 processor lifecycle controls. |
-| 12. Backup restore and runbooks | Prove operational recovery. | Provenance-verified deletion ledger replay, restore verification, runbook evidence. |
-| 13. Production release hardening | Prepare first production activation. | Release gates, security review, docs, demo, operational checklist. |
+| Phase | Status | Outcome | Primary focus | Exit signal |
+| --- | --- | --- | --- | --- |
+| 0. Foundation decisions | Complete | Resolve release-blocking unknowns before implementation. | Stack, roles, retention, providers, thresholds. | ADRs `0001-0005` accepted. |
+| 1. Project skeleton | Next | Create the deployable application foundation. | Monorepo/app setup, Docker Compose, CI, test harness. | Clone → configure → boot → test works locally and in CI. |
+| 2. Core data model, tenancy, and governance foundations | Planned | Establish safe data boundaries and pre-feature privacy/security foundations. | Scope, migrations, repositories, minimal audit, deletion ledger, processor lifecycle gating, token exceptions. | Cross-scope leakage and missing governance controls fail closed. |
+| 3. Auth, setup, and RBAC | Planned | Secure internal access from day one. | Setup token, dashboard auth, backend authorization, audit emission. | Dashboard access and privileged actions are backend-authorized. |
+| 4. Document ingestion | Planned | Load knowledge safely. | Uploads, parser isolation, documents, chunks, embeddings metadata gated by processor consent. | Unsafe files and denied processor sends cannot compromise ingestion. |
+| 5. RAG answer engine | Planned | Answer only with eligible evidence. | Scoped retrieval, visibility filters, refusal behavior, traces. | Answers are grounded or refused/escalated. |
+| 6. Public widget | Planned | Expose the customer-facing experience safely. | Widget UI, sessions, action tokens, rate limits, abuse controls. | Public endpoints are usable without treating public IDs as secrets. |
+| 7. Ticketing and queues | Planned | Escalate unresolved conversations. | Ticket creation, scoped access, agent queues, manager controls. | Customers and agents can access only authorized tickets. |
+| 8. Admin dashboard | Planned | Operate the system. | Documents, tickets, conversations, gaps, metrics, settings. | Managers can operate workflows without weakening backend controls. |
+| 9. Gaps, evals, and quality | Planned | Improve answer quality continuously. | Gap workflow, eval datasets, quality gates, cost/latency metrics. | Quality regressions and unapproved knowledge changes are blocked. |
+| 10. External processor operations | Planned | Expand processor governance operations. | Dashboards, operational visibility, review workflows, runbook evidence. | Processor lifecycle state is visible, reviewable, and auditable. |
+| 11. Audit, exports, and privacy operations | Planned | Make compliance operations real. | Audit viewer, exports, deletion/anonymization workflow using Phase 2 controls. | Operators can prove accountability without leaking sensitive data. |
+| 12. Backup restore and runbooks | Planned | Prove operational recovery. | Provenance-verified deletion ledger replay, restore verification, runbook evidence. | Restores cannot resurrect deleted/anonymized data. |
+| 13. Production release hardening | Planned | Prepare first production activation. | Release gates, security review, docs, demo, operational checklist. | Remaining risk is explicit, owned, and gated. |
 
 ## Phase 0 — Foundation decisions
+
+Status: complete. The accepted decisions are in `docs/decisions/0001-0005`; this section remains as historical planning evidence and as the Phase 1 entry baseline.
 
 ### Goal
 
@@ -580,4 +610,4 @@ If a phase is forecast to exceed the review budget, split it into chained PRs be
 
 ## First execution recommendation
 
-Start with Phase 0. Do not write production code before resolving the release-blocking decisions from the PRD. Architecture without those decisions is a castle built on sand: it may look impressive, but you will pay for it when security, retention, RBAC, or provider behavior changes underneath you.
+Start Phase 1 from the accepted Phase 0 ADR baseline. Do not implement later product features until the project skeleton, local boot path, CI, test harness, and public-safety checks exist; otherwise every later phase will be built on unverifiable ground.
