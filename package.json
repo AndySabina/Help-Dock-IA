@@ -1,0 +1,28 @@
+{
+  "name": "help-dock-ai",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.32.1",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "lint": "turbo run lint",
+    "format": "prettier --check package.json turbo.json tsconfig.base.json \"packages/**/*.{json,ts}\"",
+    "format:write": "prettier --write package.json turbo.json tsconfig.base.json \"packages/**/*.{json,ts}\"",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:coverage": "turbo run test:coverage",
+    "public-safe": "scripts/check-public-safe.sh --all"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/node": "^24.10.1",
+    "eslint": "^9.39.1",
+    "prettier": "^3.7.4",
+    "turbo": "^2.6.3",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.48.0",
+    "vitest": "^4.0.15"
+  }
+}
