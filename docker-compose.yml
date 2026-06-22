@@ -1,0 +1,109 @@
+services:
+  api:
+    image: node:22-alpine
+    working_dir: /workspace
+    command: sh -lc "corepack enable && pnpm --filter @helpdock/api start"
+    env_file: .env.example
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+    ports: ["3001"]
+    volumes: [".:/workspace"]
+    depends_on: [postgres, valkey, qdrant, minio, mailpit]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "fetch(''http://127.0.0.1:3001/health'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"'
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  admin:
+    image: node:22-alpine
+    working_dir: /workspace
+    command: sh -lc "corepack enable && pnpm --filter @helpdock/admin start"
+    env_file: .env.example
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+    ports: ["3000"]
+    volumes: [".:/workspace"]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "fetch(''http://127.0.0.1:3000/'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"'
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  widget:
+    image: node:22-alpine
+    working_dir: /workspace
+    command: sh -lc "corepack enable && pnpm --filter @helpdock/widget start"
+    env_file: .env.example
+    environment:
+      NODE_ENV: development
+      PORT: 3002
+    ports: ["3002"]
+    volumes: [".:/workspace"]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "fetch(''http://127.0.0.1:3002/'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"'
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  worker:
+    image: node:22-alpine
+    working_dir: /workspace
+    command: sh -lc "corepack enable && pnpm --filter @helpdock/worker start"
+    env_file: .env.example
+    environment:
+      NODE_ENV: development
+    volumes: [".:/workspace"]
+    depends_on: [postgres, valkey, qdrant, minio, mailpit]
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: example-user
+      POSTGRES_PASSWORD: example-password
+      POSTGRES_DB: example-db
+    ports: ["5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U example-user -d example-db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    ports: ["6379"]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:v1.12.6
+    ports: ["6333"]
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: example-user
+      MINIO_ROOT_PASSWORD: example-password
+    ports: ["9000", "9001"]
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports: ["1025", "8025"]
