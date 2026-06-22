@@ -8,8 +8,8 @@
   },
   "scripts": {
     "lint": "turbo run lint",
-    "format": "prettier --check package.json turbo.json tsconfig.base.json \"packages/**/*.{json,ts}\"",
-    "format:write": "prettier --write package.json turbo.json tsconfig.base.json \"packages/**/*.{json,ts}\"",
+    "format": "prettier --check package.json turbo.json tsconfig.base.json \"apps/**/*.{json,ts}\" \"packages/**/*.{json,ts}\"",
+    "format:write": "prettier --write package.json turbo.json tsconfig.base.json \"apps/**/*.{json,ts}\" \"packages/**/*.{json,ts}\"",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",
