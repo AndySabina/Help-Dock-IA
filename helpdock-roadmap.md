@@ -28,6 +28,31 @@ This roadmap is the planning and review index for HelpDock AI. It keeps phase or
 | `helpdock-product-requirements.md` | Approved PRD; Judgment Day PRD Round 3 approved. |
 | `docs/decisions/0001-0005` | Phase 0 approved decision baseline for Phase 1 planning. |
 
+## Canonical roadmap governance
+
+`helpdock-roadmap.md` is the only canonical roadmap. Other documents may contain product requirements, architecture decisions, setup instructions, contribution rules, or historical context, but they must not become competing planning roadmaps.
+
+### Update rules
+
+- Preserve requirements by linking to source documents instead of duplicating stable detail.
+- Copy only roadmap-critical phase order, exit signals, blocking gates, invariants, and review constraints into this file.
+- Before deleting or replacing roadmap-like content, record a keep/copy/delete decision in the consolidation ledger below.
+- Redirect any future roadmap-like file or competing roadmap section back to this master roadmap.
+- Keep each roadmap change reviewable; split changes above the 400 changed-line budget into chained PR slices.
+
+## Consolidation ledger
+
+| Source | Roadmap-like item | Decision | Preservation target | Reason |
+| --- | --- | --- | --- | --- |
+| `helpdock-roadmap.md` | Phase order, status, deliverables, required tests, exit criteria, invariant suites, and implementation slices. | keep | This file remains canonical. | It is already the only `*roadmap*.md` file and holds the delivery sequence. |
+| `README.md` | Phase 1 local setup, verification commands, Docker Compose smoke path, and CI expectations. | keep | Linked through [Phase 1](#phase-1--project-skeleton) and the [source baseline](#source-baseline). | Setup guidance belongs near contributor onboarding; the roadmap keeps the Phase 1 outcome and gates. |
+| `CONTRIBUTING.md` | Public-safety rules and strict TDD delivery gate. | keep | Reflected in [operating principles](#operating-principles), [cross-phase invariant suites](#cross-phase-invariant-suites), and the [roadmap maintenance checklist](#roadmap-maintenance-checklist). | Contribution policy is operational source material, not a roadmap. |
+| `helpdock-ai.md` | Original product concept, component list, safety/privacy boundaries, TDD policy, and runbook expectations. | keep | Summarized across the phase plan; detail remains in `helpdock-ai.md`. | The concept document preserves historical product intent, including Spanish source context. |
+| `helpdock-product-requirements.md` | PRD goals, non-goals, user journeys, acceptance criteria, release gates, and future questions. | keep | Linked from [source baseline](#source-baseline); roadmap copies only phase-level commitments. | The PRD remains the requirements source of truth. |
+| `helpdock-product-architecture.md` | Approved architecture quick path, core decisions, release gates, and invariant checklist. | keep | Linked from [decision baseline](#decision-baseline) and [cross-phase invariant suites](#cross-phase-invariant-suites). | The architecture document remains the design source of truth. |
+| `docs/decisions/0001-0005` | Phase 0 ADR baseline for stack, providers, RBAC, retention, thresholds, public safety, and Phase 1 readiness. | keep | Linked in [decision baseline](#decision-baseline). | ADRs are accepted decisions and must not be duplicated wholesale. |
+| Future `*roadmap*.md` files or competing roadmap sections | Any new planning sequence, phase plan, milestone list, or release roadmap outside this file. | copy/delete | Copy missing roadmap-critical commitments here, then replace the competing content with a link or remove it after review. | Prevents roadmap drift while preserving client commitments. |
+
 ## Decision baseline
 
 | Decision | Use it for |
@@ -46,6 +71,20 @@ This roadmap is the planning and review index for HelpDock AI. It keeps phase or
 - Keep each phase independently reviewable and shippable.
 - Keep this roadmap focused on planning; detailed architecture belongs in the source baseline and ADRs above.
 - Do not activate public production traffic until release gates and operational evidence are ready.
+
+## Delivery workflow coverage
+
+| Delivery workflow step | Roadmap coverage |
+| --- | --- |
+| 1. Understand client requirements | `helpdock-ai.md` and the PRD remain linked source material before implementation. |
+| 2. Document product understanding | This roadmap indexes the PRD, architecture, ADRs, and phase commitments. |
+| 3. Design system foundations | Phase 0 ADRs and Phases 2-3 establish data, governance, auth, RBAC, and safety foundations. |
+| 4. Select technical stack deliberately | ADR `0002` is the accepted stack/provider baseline. |
+| 5. Design user interface before building it | Widget and dashboard implementation requires concrete UI design artifacts first, such as wireframes, screen flows, mockups, prototypes, or component-level plans, after skeleton, data, auth, and safety gates are in place. |
+| 6. Create development environment | Phase 1 owns local setup, CI, Docker Compose, test harness, and public-safety checks. |
+| 7. Create production/staging environment early | Phase 1 creates local/CI deployment evidence; future phases must add staging/production planning and evidence before Phase 13 can approve activation. |
+| 8. Iterate with client feedback | Ticket, gap, eval, and dashboard phases create product feedback loops; client/stakeholder review must still drive roadmap iteration before hardening. |
+| 9. Always work with TDD | Strict failing-test-first evidence is required for central security/privacy invariants. |
 
 ## Phase overview
 
@@ -606,7 +645,18 @@ To keep review healthy, each phase should be split into reviewable work units:
 5. UI/API integration slice.
 6. Operational evidence/docs slice.
 
-If a phase is forecast to exceed the review budget, split it into chained PRs before implementation.
+If a phase is forecast to exceed the 400 changed-line review budget, split it into chained PRs before implementation. For feature-branch-chain delivery, keep the tracker branch as the integration target and make each child PR target the previous child branch or the tracker branch according to the chain plan.
+
+## Roadmap maintenance checklist
+
+Before merging roadmap changes, verify:
+
+- [ ] `helpdock-roadmap.md` remains the only `*roadmap*.md` file.
+- [ ] Any roadmap-like source content has a keep/copy/delete row in the consolidation ledger.
+- [ ] No requirement-bearing content was removed without a source link or copied roadmap-critical summary.
+- [ ] Public-safety and strict-TDD gates remain visible as blocking controls.
+- [ ] Additions plus deletions stay within the 400 changed-line review budget or are split into chained PR slices.
+- [ ] Source documents remain linked instead of duplicated wholesale.
 
 ## First execution recommendation
 
