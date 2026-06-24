@@ -28,6 +28,7 @@ test("CI workflow runs Phase 1 gates in the required order", () => {
     "pnpm typecheck",
     "pnpm test",
     "pnpm test:coverage",
+    "pnpm ci:docs:test",
     "pnpm phase1:scope",
     "pnpm compose:smoke:test",
     "pnpm compose:smoke"
@@ -47,6 +48,7 @@ test("README documents the Phase 1 local and CI setup path", () => {
     "## Phase 1 scope",
     "## Prerequisites",
     "## Local setup",
+    "## Configuration readiness",
     "## Verification commands",
     "pnpm phase1:scope",
     "## Docker Compose smoke path",

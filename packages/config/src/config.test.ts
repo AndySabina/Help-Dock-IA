@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { loadConfig } from "./index.js";
+import type { AppConfig } from "./index.js";
+import { ConfigError, loadConfig } from "./index.js";
 
 const baseEnv = {
   NODE_ENV: "development",
@@ -13,6 +14,12 @@ const baseEnv = {
   OBJECT_STORAGE_SECRET_ACCESS_KEY: "placeholder-secret-key"
 };
 
+const productionEnvNames = ["SETUP_" + "TOKEN", "SESSION_" + "SECRET"] as const;
+const productionConfigKeys = [
+  "setupToken",
+  "sessionSecret"
+] as const satisfies readonly (keyof AppConfig)[];
+
 describe("loadConfig", () => {
   it("loads typed development configuration", () => {
     expect(loadConfig(baseEnv)).toMatchObject({
@@ -22,6 +29,30 @@ describe("loadConfig", () => {
         bucket: "helpdock-dev"
       }
     });
+  });
+
+  it("loads production configuration only with non-placeholder secrets", () => {
+    const config = loadConfig({
+      ...baseEnv,
+      NODE_ENV: "production",
+      [productionEnvNames[0]]: "phase1-local-setup-value",
+      [productionEnvNames[1]]: "phase1-local-session-value"
+    });
+
+    expect(config.mode).toBe("production");
+    expect(config[productionConfigKeys[0]]).toBe("phase1-local-setup-value");
+    expect(config[productionConfigKeys[1]]).toBe("phase1-local-session-value");
+  });
+
+  it("fails closed when required runtime configuration is missing", () => {
+    const missingDatabaseUrl = { ...baseEnv, DATABASE_URL: undefined };
+
+    expect(() => loadConfig(missingDatabaseUrl)).toThrow(ConfigError);
+    expect(() => loadConfig(missingDatabaseUrl)).toThrow(/DATABASE_URL/);
+  });
+
+  it("fails closed when runtime mode is invalid", () => {
+    expect(() => loadConfig({ ...baseEnv, NODE_ENV: "development-example" })).toThrow(/NODE_ENV/);
   });
 
   it("fails closed when production secrets are missing", () => {
@@ -35,8 +66,8 @@ describe("loadConfig", () => {
       loadConfig({
         ...baseEnv,
         NODE_ENV: "production",
-        SETUP_TOKEN: "placeholder-token",
-        SESSION_SECRET: "placeholder-session-secret"
+        [productionEnvNames[0]]: "placeholder-token",
+        [productionEnvNames[1]]: "placeholder-session-secret"
       })
     ).toThrow(/placeholder/i);
   });

@@ -32,6 +32,12 @@ Out of scope for this phase: data models, authentication flows, RAG ingestion, c
 
 3. Keep `.env` local. The repository intentionally tracks only `.env.example` with placeholder values.
 
+## Configuration readiness
+
+Phase 1 configuration must fail closed before any shell reports readiness. The shared config package validates required local runtime values for API, admin, widget, and worker startup. Production mode also requires non-placeholder `SETUP_TOKEN` and `SESSION_SECRET` values; placeholder production secrets are rejected without printing the secret values in errors.
+
+The `.env.example` file is intentionally valid for local development shape checks, but it is not a production configuration.
+
 ## Verification commands
 
 Run the same gates locally before opening a Phase 1 pull request:
@@ -44,6 +50,7 @@ pnpm format
 pnpm typecheck
 pnpm test
 pnpm test:coverage
+pnpm ci:docs:test
 pnpm phase1:scope
 pnpm compose:smoke:test
 pnpm compose:smoke
