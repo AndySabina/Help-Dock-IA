@@ -23,6 +23,7 @@ test("CI workflow runs Phase 1 gates in the required order", () => {
   const orderedCommands = [
     "pnpm public-safe",
     "bash scripts/test-check-public-safe.sh",
+    "pnpm install --frozen-lockfile",
     "pnpm lint",
     "pnpm format",
     "pnpm typecheck",
@@ -52,6 +53,7 @@ test("README documents the Phase 1 local and CI setup path", () => {
     "## Verification commands",
     "pnpm phase1:scope",
     "## Docker Compose smoke path",
+    "## Phase 1 exit traceability",
     "## CI expectations"
   ]) {
     indexOfRequired(documentation, section);

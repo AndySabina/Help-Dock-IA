@@ -76,6 +76,15 @@ pnpm compose:smoke
 
 The smoke command validates configuration shape, starts the stack, waits for services, checks that app containers stay running, verifies the API/admin/widget shell endpoints, and cleans up the stack. It does not introduce product behavior.
 
+## Phase 1 exit traceability
+
+| Exit criterion                                           | Evidence                                                                                       |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Clone → configure → boot → test works locally            | `pnpm install --frozen-lockfile`, `.env.example`, `pnpm test`, `pnpm compose:smoke`            |
+| CI blocks broken tests, config, smoke, and safety checks | `.github/workflows/ci.yml`, `pnpm ci:docs:test`, `pnpm compose:smoke:test`, `pnpm public-safe` |
+| Test harness evidence remains reviewable                 | `pnpm test`, `pnpm test:coverage`, `pnpm phase1:scope`                                         |
+| No product feature behavior ships in Phase 1             | `pnpm phase1:scope` and the shell-only app/package tree                                        |
+
 ## CI expectations
 
 The `CI` workflow runs Phase 1 gates in this order:
