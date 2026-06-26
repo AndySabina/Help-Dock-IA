@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   appEndpointChecks,
   assertAppSourcesUseRuntimeResolvableImports,
+  composeCleanupArgs,
   composeRuntimeArgs,
   requiredServices
 } from "./compose-smoke.mjs";
@@ -34,4 +35,8 @@ test("compose smoke starts the stack and checks app endpoints", () => {
     { service: "admin", containerPort: 3000, path: "/", expected: "HelpDock Admin" },
     { service: "widget", containerPort: 3002, path: "/", expected: "widget" }
   ]);
+});
+
+test("compose smoke cleanup removes volumes and orphaned containers", () => {
+  assert.deepEqual(composeCleanupArgs, ["down", "--volumes", "--remove-orphans"]);
 });

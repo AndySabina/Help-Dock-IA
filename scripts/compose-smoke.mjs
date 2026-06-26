@@ -20,6 +20,7 @@ export const appEndpointChecks = [
 ];
 
 export const composeRuntimeArgs = ["compose", "up", "-d", "--wait", "--wait-timeout", "180"];
+export const composeCleanupArgs = ["down", "--volumes", "--remove-orphans"];
 
 const appSourceFiles = [
   "apps/api/src/server.ts",
@@ -96,7 +97,7 @@ export async function runComposeRuntime(projectName = `helpdock-smoke-${process.
       await assertEndpointResponds(projectName, check);
     }
   } finally {
-    dockerCompose(projectName, ["down", "--volumes", "--remove-orphans"], { stdio: "inherit" });
+    dockerCompose(projectName, composeCleanupArgs, { stdio: "inherit" });
   }
 }
 
