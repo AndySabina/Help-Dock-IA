@@ -82,6 +82,11 @@ git -C "$repo" add .env.example
 expect_pass 'placeholder .env.example assignment' "$repo"
 
 repo="$(new_repo)"
+printf '%s=%s\n' 'NODE_ENV' 'development' >"$repo/.env.example"
+git -C "$repo" add .env.example
+expect_pass 'safe NODE_ENV .env.example assignment' "$repo"
+
+repo="$(new_repo)"
 printf '%s%s=%s%s\n' 'API' '_KEY' 'staged' 'secretvalue' >"$repo/config.txt"
 git -C "$repo" add config.txt
 printf '%s%s=%s\n' 'API' '_KEY' 'your-api-key' >"$repo/config.txt"

@@ -62,6 +62,7 @@ out
 *.tsbuildinfo
 .eslintcache
 .stylelintcache
+.turbo/
 
 # Package manager caches/artifacts
 .npm

@@ -6,15 +6,16 @@ This roadmap is the planning and review index for HelpDock AI. It keeps phase or
 
 | Area | Status | Next action |
 | --- | --- | --- |
-| Phase 0 foundation decisions | Complete — committed in `c8ac4a5` | Use `docs/decisions/0001-0005` as the Phase 1 planning baseline. |
-| Product implementation | Not started | Begin Phase 1 only; do not skip directly to product features. |
+| Phase 0 foundation decisions | Verified — committed in `c8ac4a5` | Use `docs/decisions/0001-0005` as the implementation baseline. |
+| Phase 1 project skeleton | Archived with warnings — Engram `sdd/phase-1-project-foundation/archive-report` | Treat the project foundation as complete; keep warnings visible until follow-up cleanup is approved. |
+| Product implementation | Not started — Phase 2 is the next foundation phase | Start Phase 2 governance/data foundations; do not skip directly to later product features. |
 | Public production traffic | Not allowed | Wait until Phase 13 release gates and operational evidence are complete. |
 
 ## Executive index
 
 | Reader need | Start here | Why |
 | --- | --- | --- |
-| Understand what gets built next | [Phase overview](#phase-overview) → [Phase 1](#phase-1--project-skeleton) | Shows current sequence and immediate implementation target. |
+| Understand what gets built next | [Phase overview](#phase-overview) → [Phase 2](#phase-2--core-data-model-tenancy-and-governance-foundations) | Shows current sequence and immediate implementation target. |
 | Review accepted architecture decisions | [Decision baseline](#decision-baseline) | Links to ADRs instead of repeating their details here. |
 | Plan a reviewable PR | [Suggested implementation slices](#suggested-implementation-slices) | Keeps work below the 400 changed-line review budget. |
 | Check release readiness | [Phase 13](#phase-13--production-release-hardening) and [cross-phase invariant suites](#cross-phase-invariant-suites) | Defines the evidence required before production activation. |
@@ -27,6 +28,49 @@ This roadmap is the planning and review index for HelpDock AI. It keeps phase or
 | `helpdock-product-architecture.md` | Approved architecture baseline; Judgment Day Round 19 approved. |
 | `helpdock-product-requirements.md` | Approved PRD; Judgment Day PRD Round 3 approved. |
 | `docs/decisions/0001-0005` | Phase 0 approved decision baseline for Phase 1 planning. |
+
+## Canonical roadmap governance
+
+`helpdock-roadmap.md` is the only canonical roadmap. Other documents may contain product requirements, architecture decisions, setup instructions, contribution rules, or historical context, but they must not become competing planning roadmaps.
+
+### Update rules
+
+- Preserve requirements by linking to source documents instead of duplicating stable detail.
+- Copy only roadmap-critical phase order, exit signals, blocking gates, invariants, and review constraints into this file.
+- Before superseding roadmap-like content, record a `Preserve` or `Supersede` decision in the consolidation ledger below; put any nuance in the rationale, not the Action cell.
+- Redirect any future roadmap-like file or competing roadmap section back to this master roadmap.
+- Keep each roadmap change reviewable; split changes above the 400 changed-line budget into chained PR slices.
+- When work pauses or stops, update completed work, pending work, changed scope, evidence links, leaf statuses, derived parent statuses, and next actions before ending the work session.
+
+## Consolidation ledger
+
+| Source | Commitment | Action | Roadmap update target | Evidence | Rationale |
+| --- | --- | --- | --- | --- | --- |
+| `helpdock-roadmap.md` | Canonical phase order 0-13, statuses, deliverables, required tests, exit criteria, invariant suites, and review slices. | Preserve | [Global delivery workflow status](#global-delivery-workflow-status), [Canonical 0-13 status map](#canonical-0-13-status-map), and [Phase overview](#phase-overview). | Existing roadmap sections and Engram `sdd/roadmap-delivery-workflow-governance/*` evidence. | This file remains the only canonical roadmap and must not be renumbered or replaced by the 9-parent overlay. |
+| `README.md` | Phase 1 skeleton scope, local setup path, verification commands, Docker Compose smoke path, CI expectations, and no-product-behavior boundary. | Preserve | [Phase 1](#phase-1--project-skeleton), [Current status](#current-status), DW-6/DW-7 rows, and the maintenance checklist. | `README.md` Phase 1 scope, verification commands, smoke path, exit traceability, and CI expectations. | README keeps contributor setup detail; the roadmap preserves the outcome, evidence, and gates without duplicating setup instructions. |
+| `CONTRIBUTING.md` | Public repository safety harness, unsafe-file blockers, public commit rules, and strict TDD delivery gate for central invariants. | Preserve | [Operating principles](#operating-principles), DW-9, [cross-phase invariant suites](#cross-phase-invariant-suites), and [roadmap maintenance checklist](#roadmap-maintenance-checklist). | `CONTRIBUTING.md` public safety harness and strict TDD delivery gate. | Contribution policy remains operational; roadmap keeps the blocking delivery commitment visible. |
+| `helpdock-ai.md` | Original product concept: self-hosted support widget, RAG, tickets, evals, observability, dashboard, cost/latency quality loop, and portfolio/case-study intent. | Preserve | Phases 4-10, [Phase 13](#phase-13--production-release-hardening), and [Suggested implementation slices](#suggested-implementation-slices). | `helpdock-ai.md` product/component/MVP sections. | The concept document preserves historical source context; roadmap translates it into phased delivery targets. |
+| `helpdock-ai.md` | Security/privacy boundaries: no secrets in widget, scoped visibility-aware retrieval, policy docs not factual sources, parser isolation, privacy-safe audit, deletion replay, external processor consent/lifecycle, token exceptions, and strict TDD evidence. | Preserve | Phases 2-6, 10-13, DW-3/DW-8/DW-9, and [cross-phase invariant suites](#cross-phase-invariant-suites). | `helpdock-ai.md` security/privacy, external processor, backup restore, and TDD sections. | These are product safety commitments, so the roadmap keeps them as phase gates and invariant suites. |
+| `helpdock-product-requirements.md` | Product goals, non-goals, personas, journeys, functional requirements, business rules, acceptance criteria, success metrics, release gates, and future decisions. | Preserve | [Source baseline](#source-baseline), phases 2-13, and [Phase 13](#phase-13--production-release-hardening). | PRD status/source docs, functional requirements, acceptance criteria, and open questions sections. | The PRD remains the requirements source of truth; the roadmap carries only phase-level commitments and release blockers. |
+| `helpdock-product-requirements.md` | Free-text feedback comments are out of initial product scope; hosted CDN widget is future, optional, explicit, and externally disclosed. | Supersede | Phase 6 keeps binary useful/not-useful feedback and self-hosted `PUBLIC_APP_URL`; future CDN remains out of current canonical phases unless approved later. | PRD non-goals and functional requirements. | Roadmap scope control: these are not removed requirements; they supersede any broader interpretation that initial feedback or CDN hosting must ship by default. |
+| `helpdock-product-architecture.md` | Approved architecture baseline: self-hosted deployment, customer-controlled data boundary, consent-gated processors, scoped RAG, backend RBAC, privacy-safe audit, deletion replay, runbooks, and central invariant TDD. | Preserve | [Decision baseline](#decision-baseline), DW-1 through DW-9, and [cross-phase invariant suites](#cross-phase-invariant-suites). | Architecture quick path, core decisions, and domain sections. | Architecture remains the design source of truth; roadmap points implementation phases at the approved baseline. |
+| `docs/decisions/0001-self-hosted-foundation-and-llm-boundary.md` | Self-hosted default, customer-controlled data boundary, explicit external LLM/processor consent, public repo safety, and no model-only fallback when scoped evidence is insufficient. | Preserve | DW-1/DW-3, Phases 2, 5, 13, and the source/decision baselines. | ADR 0001 decision and consequences. | Accepted Phase 0 decision remains binding for future implementation. |
+| `docs/decisions/0002-data-platform-and-provider-baseline.md` | TypeScript monorepo, NestJS backend, Next.js admin, Vite React widget, pnpm/Turborepo, Docker Compose, PostgreSQL/Drizzle, Valkey, MinIO/S3, Qdrant, OpenTelemetry stack, provider defaults, and strict TDD baseline. | Preserve | DW-4, Phase 1, Phase 2, and later provider/operations phases. | ADR 0002 decision, provider table, and consequences. | Stack choices are accepted implementation constraints, not optional roadmap ideas. |
+| `docs/decisions/0003-security-secrets-rbac-and-multi-tenancy.md` | Tenant/workspace/site/widget scoping, backend-enforced RBAC, first-release role model, secrets policy, operator/compliance boundaries, and privacy-safe audit requirements. | Preserve | Phases 2, 3, 8, 10, 11, 13 and RBAC/audit invariant suites. | ADR 0003 decision, role matrix, and consequences. | These decisions define required authorization and audit behavior for all later product phases. |
+| `docs/decisions/0004-rag-retention-deletion-replay-and-release-thresholds.md` | Scoped public-widget RAG, retention defaults, release thresholds, eval minimums, cost caps, hallucination blocker, documentation gap SLA, and deletion replay release gate. | Preserve | Phases 2, 4, 5, 9, 11-13 and RAG/deletion/runbook invariant suites. | ADR 0004 thresholds, cost caps, gap SLA, and consequences. | Quantitative release gates must remain explicit so production activation cannot happen by accident. |
+| `docs/decisions/0005-quality-gates-public-safety-and-phase-1-readiness.md` | Phase 1 readiness baseline, public-safety gates, synthetic examples only, no production traffic, executable harness expectations, and release exception ownership. | Preserve | Phase 1, DW-6/DW-9, [Current status](#current-status), and maintenance checklist. | ADR 0005 decision and consequences; Engram Phase 1 archive evidence. | Phase 1 is archived as foundation work while warnings and public-safety gates remain visible. |
+| Engram `sdd/phase-1-project-foundation/archive-report` | Phase 1 completed as a technical foundation and archived with warnings; product behavior remains out of scope. | Preserve | [Current status](#current-status), DW-4/DW-6/DW-7/DW-9, [Canonical 0-13 status map](#canonical-0-13-status-map), and [Phase 1](#phase-1--project-skeleton). | Engram archive report and prior verification evidence. | Status changes must reconcile with SDD evidence instead of stale roadmap text. |
+| Future `*roadmap*.md` files or competing roadmap sections | Any new planning sequence, phase plan, milestone list, release roadmap, or status model outside this file. | Supersede | Copy any missing roadmap-critical commitments into this ledger and the relevant phase/status section, then replace competing content with a link or remove it after review. | Future source review. | Supersede only after preservation review; this prevents roadmap drift while preserving client commitments and review evidence. |
+
+### Deep source review update targets
+
+| Finding | Roadmap target | Handling |
+| --- | --- | --- |
+| Phase 1 is complete as foundation only and archived with warnings. | Current status, DW-4/DW-6/DW-7/DW-9, canonical phase map, and Phase 1. | Preserve evidence; do not imply product behavior shipped. |
+| The 9-parent delivery workflow must guide delivery without replacing phases 0-13. | Global delivery workflow status and child status rows. | Preserve both hierarchies; parent statuses derive from direct children only. |
+| Central security/privacy invariants require strict failing-test-first evidence. | DW-9 and cross-phase invariant suites. | Preserve as blocking delivery governance; docs-only roadmap edits do not require the strict TDD module. |
+| Self-hosted data boundary, processor consent, deletion replay, public safety, and release gates are release-blocking. | Phases 2, 5, 10-13, decision baseline, and invariant suites. | Preserve as phase gates and release criteria. |
+| Repo-cleanliness/auditability governance and Markdown validation automation are valuable but outside this slice. | Follow-up governance notes. | Preserve as future SDD follow-up; do not implement scripts or new repo-cleanliness rules here. |
 
 ## Decision baseline
 
@@ -47,12 +91,74 @@ This roadmap is the planning and review index for HelpDock AI. It keeps phase or
 - Keep this roadmap focused on planning; detailed architecture belongs in the source baseline and ADRs above.
 - Do not activate public production traffic until release gates and operational evidence are ready.
 
+## Global delivery workflow status
+
+<!-- roadmap-status-schema: v1 -->
+
+This section overlays the 9-parent delivery workflow onto the canonical phases 0-13. It does not replace or renumber the implementation sequence below.
+
+Allowed status values: `Not started`, `Planned`, `Ready`, `In progress`, `Verified`, `Archiving`, `Archived`, `Blocked`.
+
+Status derivation rules: leaf statuses are updated from evidence; parent and intermediate statuses derive only from direct children. If any direct child is `Blocked`, the parent is `Blocked`. If all direct children have the same status, the parent inherits that status. If all direct children are `Verified`, the parent is `Verified`. If all direct children are `Archived`, the parent is `Archived`. If direct children are only `Verified` and `Archived` with at least one `Archived`, the parent is `Archiving`. Other mixed active or planned states derive to `In progress`.
+
+| Parent ID | Parent workflow phase | Status | Canonical mapping | Evidence | Next action |
+| --- | --- | --- | --- | --- | --- |
+| DW-1 | Understand client requirements | Verified | `helpdock-ai.md`, PRD, Phase 0 | Product concept, PRD approval baseline, ADRs `0001-0005` | Preserve source links; reopen only through a scoped SDD change. |
+| DW-2 | Document product understanding | Verified | PRD, architecture, roadmap, Phase 0 | PRD Round 3 and architecture Round 19 approval notes; this roadmap | Keep roadmap updates additive and evidence-linked. |
+| DW-3 | Design system foundations | In progress | Phases 0, 2, 3 | ADRs `0001-0005`; Phase 2 and Phase 3 remain planned | Start Phase 2 governance/data foundations next. |
+| DW-4 | Select technical stack deliberately | Archived | ADR `0002`, Phase 1 | ADR `0002`; Engram Phase 1 archive report | Use the TypeScript monorepo and Docker Compose baseline. |
+| DW-5 | Design user interface before building it | Planned | Phases 6, 8 preconditions | Widget/dashboard requirements only; no wireframes, screen flows, mockups, prototypes, or component-level plans yet | Add UI design artifacts before widget or dashboard build slices. |
+| DW-6 | Create development environment | Archived | Phase 1 | Engram `sdd/phase-1-project-foundation/archive-report` | Keep local setup, CI, smoke, and public-safety gates active. |
+| DW-7 | Create production/staging environment early | In progress | Phases 1, 12, 13 | Phase 1 local/CI evidence archived; staging/production evidence planned | Add environment evidence before production activation. |
+| DW-8 | Iterate with client feedback | Planned | Phases 7, 8, 9, 10 | Ticket, dashboard, gap, eval, and processor-operation phases planned | Capture feedback as requirements before implementing changes. |
+| DW-9 | Always work with TDD | In progress | Phase 1 and cross-phase invariant suites | Phase 1 test harness archived with warning; central invariant suites planned | Require failing-test-first evidence for central security/privacy invariants. |
+
+### Delivery workflow child status rows
+
+These parseable child rows make parent status derivation auditable without replacing the canonical phase sections below.
+
+| Child ID | Parent ID | Canonical phase/source | Status | Evidence | Derivation note |
+| --- | --- | --- | --- | --- | --- |
+| DW-1.1 | DW-1 | `helpdock-ai.md`, PRD, Phase 0 | Verified | Product concept, approved PRD baseline, ADRs `0001-0005` | Direct child verifies DW-1. |
+| DW-2.1 | DW-2 | PRD, architecture, roadmap, Phase 0 | Verified | PRD Round 3, architecture Round 19, this roadmap | Direct child verifies DW-2. |
+| DW-3.1 | DW-3 | Phase 0 foundation decisions | Verified | ADRs `0001-0005`, commit `c8ac4a5` | Mixed with planned children; DW-3 derives `In progress`. |
+| DW-3.2 | DW-3 | Phase 2 governance/data foundations | Planned | Roadmap and ADR baseline | Planned child keeps DW-3 active. |
+| DW-3.3 | DW-3 | Phase 3 auth/setup/RBAC foundations | Planned | Roadmap and ADR baseline | Planned child keeps DW-3 active. |
+| DW-4.1 | DW-4 | ADR `0002` and Phase 1 stack baseline | Archived | ADR `0002`; Engram `sdd/phase-1-project-foundation/archive-report` | Direct child archives DW-4. |
+| DW-5.1 | DW-5 | Phase 6 widget UI preconditions | Planned | Roadmap requires UI design artifacts before build | Needs wireframes, screen flows, mockups, prototypes, or component-level plans. |
+| DW-5.2 | DW-5 | Phase 8 dashboard UI preconditions | Planned | Roadmap requires UI design artifacts before build | Needs wireframes, screen flows, mockups, prototypes, or component-level plans. |
+| DW-6.1 | DW-6 | Phase 1 development environment | Archived | Engram `sdd/phase-1-project-foundation/archive-report` | Direct child archives DW-6. |
+| DW-7.1 | DW-7 | Phase 1 local/CI environment | Archived | Engram Phase 1 archive evidence | Mixed with planned children; DW-7 derives `In progress`. |
+| DW-7.2 | DW-7 | Phases 12-13 staging/production readiness | Planned | Roadmap release and runbook phases | Planned child keeps DW-7 active. |
+| DW-8.1 | DW-8 | Phases 7-10 feedback and quality loops | Planned | Ticketing, dashboard, gaps/evals, processor operations planned | All direct children are planned; DW-8 derives `Planned`. |
+| DW-9.1 | DW-9 | Phase 1 test harness | Archived | Engram Phase 1 archive warning remains visible | Mixed with planned invariant suites; DW-9 derives `In progress`. |
+| DW-9.2 | DW-9 | Cross-phase security/privacy invariant suites | Planned | Scope, visibility, RBAC, audit, processor, token, deletion, and runbook suites below | Planned child keeps DW-9 active. |
+
+### Canonical 0-13 status map
+
+| Canonical phase | Status | Evidence | Notes |
+| --- | --- | --- | --- |
+| 0. Foundation decisions | Verified | `docs/decisions/0001-0005`, commit `c8ac4a5` | Accepted planning baseline; no product behavior shipped. |
+| 1. Project skeleton | Archived | Engram `sdd/phase-1-project-foundation/archive-report` | Archived with warnings; technical foundation only. |
+| 2. Core data model, tenancy, and governance foundations | Planned | Roadmap and ADR baseline | Next product foundation phase. |
+| 3. Auth, setup, and RBAC | Planned | Roadmap and ADR baseline | Depends on Phase 2 scope/governance foundations. |
+| 4. Document ingestion | Planned | Roadmap, PRD, architecture | Depends on parser and processor gates. |
+| 5. RAG answer engine | Planned | Roadmap, PRD, architecture | Depends on scoped retrieval and processor gates. |
+| 6. Public widget | Planned | Roadmap, PRD, architecture | Requires UI design artifacts before build. |
+| 7. Ticketing and queues | Planned | Roadmap, PRD, architecture | Establishes customer/support feedback loop. |
+| 8. Admin dashboard | Planned | Roadmap, PRD, architecture | Requires UI design artifacts before build. |
+| 9. Gaps, evals, and quality | Planned | Roadmap, PRD, architecture | Establishes product quality loop. |
+| 10. External processor operations | Planned | Roadmap, PRD, architecture | Expands Phase 2 processor controls. |
+| 11. Audit, exports, and privacy operations | Planned | Roadmap, PRD, architecture | Uses Phase 2 audit/deletion foundations. |
+| 12. Backup restore and runbooks | Planned | Roadmap, PRD, architecture | Must prove deletion replay before release. |
+| 13. Production release hardening | Planned | Roadmap, PRD, architecture | Blocks public traffic until release evidence is complete. |
+
 ## Phase overview
 
 | Phase | Status | Outcome | Primary focus | Exit signal |
 | --- | --- | --- | --- | --- |
-| 0. Foundation decisions | Complete | Resolve release-blocking unknowns before implementation. | Stack, roles, retention, providers, thresholds. | ADRs `0001-0005` accepted. |
-| 1. Project skeleton | Next | Create the deployable application foundation. | Monorepo/app setup, Docker Compose, CI, test harness. | Clone → configure → boot → test works locally and in CI. |
+| 0. Foundation decisions | Verified | Resolve release-blocking unknowns before implementation. | Stack, roles, retention, providers, thresholds. | ADRs `0001-0005` accepted. |
+| 1. Project skeleton | Archived | Create the deployable application foundation. | Monorepo/app setup, Docker Compose, CI, test harness. | Clone → configure → boot → test works locally and in CI. |
 | 2. Core data model, tenancy, and governance foundations | Planned | Establish safe data boundaries and pre-feature privacy/security foundations. | Scope, migrations, repositories, minimal audit, deletion ledger, processor lifecycle gating, token exceptions. | Cross-scope leakage and missing governance controls fail closed. |
 | 3. Auth, setup, and RBAC | Planned | Secure internal access from day one. | Setup token, dashboard auth, backend authorization, audit emission. | Dashboard access and privileged actions are backend-authorized. |
 | 4. Document ingestion | Planned | Load knowledge safely. | Uploads, parser isolation, documents, chunks, embeddings metadata gated by processor consent. | Unsafe files and denied processor sends cannot compromise ingestion. |
@@ -68,7 +174,7 @@ This roadmap is the planning and review index for HelpDock AI. It keeps phase or
 
 ## Phase 0 — Foundation decisions
 
-Status: complete. The accepted decisions are in `docs/decisions/0001-0005`; this section remains as historical planning evidence and as the Phase 1 entry baseline.
+Status: Verified. The accepted decisions are in `docs/decisions/0001-0005`; this section remains as historical planning evidence and as the implementation baseline.
 
 ### Goal
 
@@ -99,6 +205,8 @@ Resolve the release-blocking decisions that would otherwise cause architectural 
 - The review scope for Phase 1 is clear.
 
 ## Phase 1 — Project skeleton
+
+Status: Archived with warnings. Engram `sdd/phase-1-project-foundation/archive-report` archived Phase 1 as a technical foundation change only; product behavior remains out of scope.
 
 ### Goal
 
@@ -606,8 +714,27 @@ To keep review healthy, each phase should be split into reviewable work units:
 5. UI/API integration slice.
 6. Operational evidence/docs slice.
 
-If a phase is forecast to exceed the review budget, split it into chained PRs before implementation.
+If a phase is forecast to exceed the 400 changed-line review budget, split it into chained PRs before implementation. For feature-branch-chain delivery, keep the tracker branch as the integration target and make each child PR target the previous child branch or the tracker branch according to the chain plan.
+
+## Roadmap maintenance checklist
+
+Before merging roadmap changes, verify:
+
+- [ ] `helpdock-roadmap.md` remains the only `*roadmap*.md` file.
+- [ ] `## Global delivery workflow status` keeps `<!-- roadmap-status-schema: v1 -->` and the required parent/status/canonical-map table shape.
+- [ ] Statuses use only `Not started`, `Planned`, `Ready`, `In progress`, `Verified`, `Archiving`, `Archived`, or `Blocked`.
+- [ ] Leaf statuses cite evidence, and parent statuses follow the documented direct-child derivation rules.
+- [ ] Any roadmap-like source content has a Preserve/Supersede row in the consolidation ledger.
+- [ ] No requirement-bearing content was removed or superseded without a source link, roadmap target, evidence, and rationale.
+- [ ] Public-safety and strict-TDD gates remain visible as blocking controls.
+- [ ] Additions plus deletions stay within the 400 changed-line review budget or are split into chained PR slices.
+- [ ] Source documents remain linked instead of duplicated wholesale.
+
+## Follow-up governance notes
+
+- Add a future roadmap validation script after this Markdown contract stabilizes. The script should parse the schema marker, allowed status vocabulary, parent workflow table, canonical phase map, and parent/child derivation rules.
+- Create a separate SDD change for repository cleanliness and auditability. That rule is intentionally out of scope for this roadmap governance slice.
 
 ## First execution recommendation
 
-Start Phase 1 from the accepted Phase 0 ADR baseline. Do not implement later product features until the project skeleton, local boot path, CI, test harness, and public-safety checks exist; otherwise every later phase will be built on unverifiable ground.
+Start Phase 2 governance/data foundations from the accepted Phase 0 ADR baseline and archived Phase 1 project foundation evidence. Do not implement later product features until Phase 2 establishes safe scope, governance, audit, deletion, processor, and token-exception foundations; otherwise later phases will be built on unverifiable ground.
