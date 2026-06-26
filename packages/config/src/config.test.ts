@@ -51,6 +51,11 @@ describe("loadConfig", () => {
     expect(() => loadConfig(missingDatabaseUrl)).toThrow(/DATABASE_URL/);
   });
 
+  it("fails closed when required runtime configuration is blank", () => {
+    expect(() => loadConfig({ ...baseEnv, DATABASE_URL: "   " })).toThrow(ConfigError);
+    expect(() => loadConfig({ ...baseEnv, DATABASE_URL: "   " })).toThrow(/DATABASE_URL/);
+  });
+
   it("fails closed when runtime mode is invalid", () => {
     expect(() => loadConfig({ ...baseEnv, NODE_ENV: "development-example" })).toThrow(/NODE_ENV/);
   });
@@ -59,6 +64,17 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ ...baseEnv, NODE_ENV: "production" })).toThrow(
       /SETUP_TOKEN.*SESSION_SECRET/s
     );
+  });
+
+  it("fails closed when production secrets are blank", () => {
+    expect(() =>
+      loadConfig({
+        ...baseEnv,
+        NODE_ENV: "production",
+        [productionEnvNames[0]]: "   ",
+        [productionEnvNames[1]]: "phase1-local-session-value"
+      })
+    ).toThrow(/SETUP_TOKEN/);
   });
 
   it("fails closed when production secrets use placeholders", () => {
