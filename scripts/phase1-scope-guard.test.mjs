@@ -65,6 +65,13 @@ function isLowercaseAsciiLetter(character) {
   return /^[a-z]$/.test(character);
 }
 
+function startsPascalCaseWord(content, index) {
+  const currentCharacter = content[index] ?? "";
+  const nextCharacter = content[index + 1] ?? "";
+
+  return isUppercaseAsciiLetter(currentCharacter) && isLowercaseAsciiLetter(nextCharacter);
+}
+
 function containsProductTerm(content, termVariants) {
   const normalizedContent = content.toLowerCase();
 
@@ -76,14 +83,19 @@ function containsProductTerm(content, termVariants) {
       const currentCharacter = content[index] ?? "";
       const termEndCharacter = content[index + term.length - 1] ?? "";
       const nextCharacter = content[index + term.length] ?? "";
+      const characterAfterNext = content[index + term.length + 1] ?? "";
       const startsAtBoundary =
         !previousCharacter ||
         !isAsciiLetter(previousCharacter) ||
-        (isLowercaseAsciiLetter(previousCharacter) && isUppercaseAsciiLetter(currentCharacter));
+        (isLowercaseAsciiLetter(previousCharacter) && isUppercaseAsciiLetter(currentCharacter)) ||
+        (isUppercaseAsciiLetter(previousCharacter) && startsPascalCaseWord(content, index));
       const endsAtBoundary =
         !nextCharacter ||
         !isAsciiLetter(nextCharacter) ||
-        (isLowercaseAsciiLetter(termEndCharacter) && isUppercaseAsciiLetter(nextCharacter));
+        (isLowercaseAsciiLetter(termEndCharacter) && isUppercaseAsciiLetter(nextCharacter)) ||
+        (isUppercaseAsciiLetter(termEndCharacter) &&
+          isUppercaseAsciiLetter(nextCharacter) &&
+          isLowercaseAsciiLetter(characterAfterNext));
 
       if (startsAtBoundary && endsAtBoundary) {
         return true;
@@ -145,9 +157,15 @@ test("Phase 1 product term guard catches product terms in common identifier comp
     "permissionCheck",
     "dashboardConfig",
     "TicketRoute",
-    "getTicketRoute"
+    "getTicketRoute",
+    "APITicketRoute",
+    "RBACPermission",
+    "HTTPDashboardConfig",
+    "UITicket",
+    "RBACGuard",
+    "RAGPipeline"
   ]) {
-    assert.equal(productTermsIn(`const ${identifier} = true;`).length, 1, `missed ${identifier}`);
+    assert.ok(productTermsIn(`const ${identifier} = true;`).length > 0, `missed ${identifier}`);
   }
 });
 
@@ -156,6 +174,7 @@ test("Phase 1 product term guard allows approved shell-only compound identifiers
     "healthRoute",
     "healthRoutes",
     "notFoundResponse",
+    "OBJECT_STORAGE",
     "serverConfig",
     "widgetShell",
     "workerConfig"
