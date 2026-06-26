@@ -44,11 +44,12 @@ pnpm format
 pnpm typecheck
 pnpm test
 pnpm test:coverage
+pnpm phase1:scope
 pnpm compose:smoke:test
 pnpm compose:smoke
 ```
 
-`pnpm ci:docs:test` validates that the CI workflow and this setup guide continue to document the required Phase 1 path.
+`pnpm ci:docs:test` validates that the CI workflow and this setup guide continue to document the required Phase 1 path. `pnpm phase1:scope` blocks accidental product feature leakage by enforcing the approved shell-only source tree and route surface.
 
 ## Docker Compose smoke path
 
@@ -76,6 +77,7 @@ The `CI` workflow runs Phase 1 gates in this order:
 2. Dependency installation through pnpm.
 3. Lint, format, typecheck, tests, and coverage.
 4. CI/docs regression test.
-5. Compose smoke test and runtime Compose smoke validation.
+5. Phase 1 shell-only scope guard.
+6. Compose smoke test and runtime Compose smoke validation.
 
 The existing `Public safety` workflow remains in place as a focused guard for unsafe files, secrets, local paths, and unsupported lockfiles.
