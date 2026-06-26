@@ -17,6 +17,7 @@
     "compose:smoke": "node scripts/compose-smoke.mjs",
     "compose:smoke:test": "node --test scripts/compose-smoke.test.mjs",
     "ci:docs:test": "node --test scripts/ci-docs.test.mjs",
+    "governance:docs:test": "node --test scripts/governance-docs.test.mjs",
     "phase1:scope": "node --test scripts/phase1-scope-guard.test.mjs"
   },
   "devDependencies": {
