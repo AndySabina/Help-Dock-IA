@@ -9,17 +9,18 @@ const storageEnvNames = [
 const productionEnvNames = ["SETUP_" + "TOKEN", "SESSION_" + "SECRET"] as const;
 const storageConfigFields = ["access" + "KeyId", "secret" + "AccessKey"] as const;
 const productionConfigFields = ["setup" + "Token", "session" + "Secret"] as const;
+const requiredStringSchema = z.string().refine((value) => value.trim().length > 0);
 
 const envSchema = z.object({
   NODE_ENV: runtimeModeSchema.default("development"),
   PUBLIC_APP_URL: z.url(),
-  DATABASE_URL: z.string().min(1),
-  VALKEY_URL: z.string().min(1),
+  DATABASE_URL: requiredStringSchema,
+  VALKEY_URL: requiredStringSchema,
   QDRANT_URL: z.url(),
   OBJECT_STORAGE_ENDPOINT: z.url(),
-  OBJECT_STORAGE_BUCKET: z.string().min(1),
-  [storageEnvNames[0]]: z.string().min(1),
-  [storageEnvNames[1]]: z.string().min(1)
+  OBJECT_STORAGE_BUCKET: requiredStringSchema,
+  [storageEnvNames[0]]: requiredStringSchema,
+  [storageEnvNames[1]]: requiredStringSchema
 });
 
 export type RuntimeMode = z.infer<typeof runtimeModeSchema>;
@@ -59,8 +60,12 @@ export class ConfigError extends Error {
 
 type RawEnv = Record<string, string | undefined>;
 
+function hasRequiredValue(value: string | undefined): value is string {
+  return value !== undefined && value.trim().length > 0;
+}
+
 function isPlaceholder(value: string | undefined): boolean {
-  if (!value) {
+  if (!hasRequiredValue(value)) {
     return true;
   }
 
@@ -76,7 +81,7 @@ function formatSchemaError(error: z.ZodError): ConfigError {
 }
 
 function assertProductionSecrets(env: RawEnv): void {
-  const missing = productionEnvNames.filter((name) => !env[name]);
+  const missing = productionEnvNames.filter((name) => !hasRequiredValue(env[name]));
   if (missing.length > 0) {
     throw new ConfigError(
       `Production configuration is missing required secrets: ${missing.join(", ")}`
@@ -117,10 +122,10 @@ export function loadConfig(env: RawEnv = process.env): AppConfig {
     valkeyUrl: data.VALKEY_URL,
     qdrantUrl: data.QDRANT_URL,
     objectStorage,
-    ...(env[productionEnvNames[0]]
+    ...(hasRequiredValue(env[productionEnvNames[0]])
       ? { [productionConfigFields[0]]: env[productionEnvNames[0]] }
       : {}),
-    ...(env[productionEnvNames[1]]
+    ...(hasRequiredValue(env[productionEnvNames[1]])
       ? { [productionConfigFields[1]]: env[productionEnvNames[1]] }
       : {})
   };

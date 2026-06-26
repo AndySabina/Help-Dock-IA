@@ -99,6 +99,19 @@ looks_like_placeholder_value() {
   return 1
 }
 
+looks_like_allowed_env_example_assignment() {
+  local key="$1"
+  local value="$2"
+
+  case "$key=$value" in
+    NODE_ENV=development|NODE_ENV=test|NODE_ENV=production)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
 check_env_example_values() {
   local files="$1"
   local label="$2"
@@ -128,10 +141,12 @@ check_env_example_values() {
 
       case "$line" in
         *=*)
+          key="${line%%=*}"
           value="${line#*=}"
           value="${value%%#*}"
           value="${value%$'\r'}"
-          if ! looks_like_placeholder_value "$value"; then
+          if ! looks_like_placeholder_value "$value" && \
+            ! looks_like_allowed_env_example_assignment "$key" "$value"; then
             fail "$label contains .env.example value that does not look like a placeholder: $file"
           fi
           ;;
