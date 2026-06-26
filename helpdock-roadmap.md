@@ -48,7 +48,7 @@ This roadmap is the planning and review index for HelpDock AI. It keeps phase or
 | --- | --- | --- | --- | --- | --- |
 | `helpdock-roadmap.md` | Canonical phase order 0-13, statuses, deliverables, required tests, exit criteria, invariant suites, and review slices. | Preserve | [Global delivery workflow status](#global-delivery-workflow-status), [Canonical 0-13 status map](#canonical-0-13-status-map), and [Phase overview](#phase-overview). | Existing roadmap sections and Engram `sdd/roadmap-delivery-workflow-governance/*` evidence. | This file remains the only canonical roadmap and must not be renumbered or replaced by the 9-parent overlay. |
 | `README.md` | Phase 1 skeleton scope, local setup path, verification commands, Docker Compose smoke path, CI expectations, and no-product-behavior boundary. | Preserve | [Phase 1](#phase-1--project-skeleton), [Current status](#current-status), DW-6/DW-7 rows, and the maintenance checklist. | `README.md` Phase 1 scope, verification commands, smoke path, exit traceability, and CI expectations. | README keeps contributor setup detail; the roadmap preserves the outcome, evidence, and gates without duplicating setup instructions. |
-| `CONTRIBUTING.md` | Public repository safety harness, unsafe-file blockers, public commit rules, and strict TDD delivery gate for central invariants. | Preserve | [Operating principles](#operating-principles), DW-9, [cross-phase invariant suites](#cross-phase-invariant-suites), and [roadmap maintenance checklist](#roadmap-maintenance-checklist). | `CONTRIBUTING.md` public safety harness and strict TDD delivery gate. | Contribution policy remains operational; roadmap keeps the blocking delivery commitment visible. |
+| `CONTRIBUTING.md` | Public repository safety harness, unsafe-file blockers, public commit rules, and strict TDD delivery gate for all implementation-affecting changes. | Preserve | [Operating principles](#operating-principles), DW-9, [cross-phase invariant suites](#cross-phase-invariant-suites), and [roadmap maintenance checklist](#roadmap-maintenance-checklist). | `CONTRIBUTING.md` public safety harness and strict TDD delivery gate. | Contribution policy remains operational; roadmap keeps the blocking delivery commitment visible. |
 | `helpdock-ai.md` | Original product concept: self-hosted support widget, RAG, tickets, evals, observability, dashboard, cost/latency quality loop, and portfolio/case-study intent. | Preserve | Phases 4-10, [Phase 13](#phase-13--production-release-hardening), and [Suggested implementation slices](#suggested-implementation-slices). | `helpdock-ai.md` product/component/MVP sections. | The concept document preserves historical source context; roadmap translates it into phased delivery targets. |
 | `helpdock-ai.md` | Security/privacy boundaries: no secrets in widget, scoped visibility-aware retrieval, policy docs not factual sources, parser isolation, privacy-safe audit, deletion replay, external processor consent/lifecycle, token exceptions, and strict TDD evidence. | Preserve | Phases 2-6, 10-13, DW-3/DW-8/DW-9, and [cross-phase invariant suites](#cross-phase-invariant-suites). | `helpdock-ai.md` security/privacy, external processor, backup restore, and TDD sections. | These are product safety commitments, so the roadmap keeps them as phase gates and invariant suites. |
 | `helpdock-product-requirements.md` | Product goals, non-goals, personas, journeys, functional requirements, business rules, acceptance criteria, success metrics, release gates, and future decisions. | Preserve | [Source baseline](#source-baseline), phases 2-13, and [Phase 13](#phase-13--production-release-hardening). | PRD status/source docs, functional requirements, acceptance criteria, and open questions sections. | The PRD remains the requirements source of truth; the roadmap carries only phase-level commitments and release blockers. |
@@ -68,7 +68,7 @@ This roadmap is the planning and review index for HelpDock AI. It keeps phase or
 | --- | --- | --- |
 | Phase 1 is complete as foundation only and archived with warnings. | Current status, DW-4/DW-6/DW-7/DW-9, canonical phase map, and Phase 1. | Preserve evidence; do not imply product behavior shipped. |
 | The 9-parent delivery workflow must guide delivery without replacing phases 0-13. | Global delivery workflow status and child status rows. | Preserve both hierarchies; parent statuses derive from direct children only. |
-| Central security/privacy invariants require strict failing-test-first evidence. | DW-9 and cross-phase invariant suites. | Preserve as blocking delivery governance; docs-only roadmap edits do not require the strict TDD module. |
+| Strict failing-test-first evidence now applies to every implementation-affecting change. | DW-9 and cross-phase invariant suites. | Preserve as blocking delivery governance; docs-only narrative edits remain docs-safe only when they do not change executable behavior. |
 | Self-hosted data boundary, processor consent, deletion replay, public safety, and release gates are release-blocking. | Phases 2, 5, 10-13, decision baseline, and invariant suites. | Preserve as phase gates and release criteria. |
 | Repo-cleanliness/auditability governance and Markdown validation automation are valuable but outside this slice. | Follow-up governance notes. | Preserve as future SDD follow-up; do not implement scripts or new repo-cleanliness rules here. |
 
@@ -86,7 +86,7 @@ This roadmap is the planning and review index for HelpDock AI. It keeps phase or
 
 - Build the boring foundation before the impressive AI features.
 - Treat self-hosting, scope isolation, visibility gates, RBAC, audit safety, and deletion replay as first-class product features.
-- Use strict failing-test-first TDD for central security and privacy invariants.
+- Use strict failing-test-first TDD for every implementation-affecting change; record approved exceptions explicitly.
 - Keep each phase independently reviewable and shippable.
 - Keep this roadmap focused on planning; detailed architecture belongs in the source baseline and ADRs above.
 - Do not activate public production traffic until release gates and operational evidence are ready.
@@ -111,7 +111,7 @@ Status derivation rules: leaf statuses are updated from evidence; parent and int
 | DW-6 | Create development environment | Archived | Phase 1 | Engram `sdd/phase-1-project-foundation/archive-report` | Keep local setup, CI, smoke, and public-safety gates active. |
 | DW-7 | Create production/staging environment early | In progress | Phases 1, 12, 13 | Phase 1 local/CI evidence archived; staging/production evidence planned | Add environment evidence before production activation. |
 | DW-8 | Iterate with client feedback | Planned | Phases 7, 8, 9, 10 | Ticket, dashboard, gap, eval, and processor-operation phases planned | Capture feedback as requirements before implementing changes. |
-| DW-9 | Always work with TDD | In progress | Phase 1 and cross-phase invariant suites | Phase 1 test harness archived with warning; central invariant suites planned | Require failing-test-first evidence for central security/privacy invariants. |
+| DW-9 | Always work with TDD | In progress | Phase 1 and cross-phase invariant suites | Phase 1 test harness archived with warning; permanent strict TDD governance now applies to all implementation-affecting changes | Require failing-test-first evidence or an approved exception for every implementation-affecting change. |
 
 ### Delivery workflow child status rows
 
@@ -131,7 +131,7 @@ These parseable child rows make parent status derivation auditable without repla
 | DW-7.1 | DW-7 | Phase 1 local/CI environment | Archived | Engram Phase 1 archive evidence | Mixed with planned children; DW-7 derives `In progress`. |
 | DW-7.2 | DW-7 | Phases 12-13 staging/production readiness | Planned | Roadmap release and runbook phases | Planned child keeps DW-7 active. |
 | DW-8.1 | DW-8 | Phases 7-10 feedback and quality loops | Planned | Ticketing, dashboard, gaps/evals, processor operations planned | All direct children are planned; DW-8 derives `Planned`. |
-| DW-9.1 | DW-9 | Phase 1 test harness | Archived | Engram Phase 1 archive warning remains visible | Mixed with planned invariant suites; DW-9 derives `In progress`. |
+| DW-9.1 | DW-9 | Phase 1 test harness | Archived | Engram Phase 1 archive warning remains visible; historical RED evidence remains absent where not captured | Mixed with planned invariant suites; DW-9 derives `In progress`; do not make retroactive TDD compliance claims. |
 | DW-9.2 | DW-9 | Cross-phase security/privacy invariant suites | Planned | Scope, visibility, RBAC, audit, processor, token, deletion, and runbook suites below | Planned child keeps DW-9 active. |
 
 ### Canonical 0-13 status map
@@ -729,6 +729,14 @@ Before merging roadmap changes, verify:
 - [ ] Public-safety and strict-TDD gates remain visible as blocking controls.
 - [ ] Additions plus deletions stay within the 400 changed-line review budget or are split into chained PR slices.
 - [ ] Source documents remain linked instead of duplicated wholesale.
+
+## Phase 1 warning ledger
+
+| Warning | Current handling | Evidence | Status |
+| --- | --- | --- | --- |
+| Historical RED evidence was not captured for every Phase 1 foundation change. | Preserve the warning; do not retroactively claim strict TDD compliance. | Engram `sdd/phase-1-project-foundation/archive-report` and current repository gates. | Historical evidence absent; no compliance claim. |
+| Current Phase 1 gates remain executable after archive. | Keep CI, public-safety, test, coverage, docs, scope, and Compose smoke checks active. | `.github/workflows/ci.yml`, `README.md`, `scripts/*`, and package scripts. | Current gates verified by future PR checks. |
+| Strict TDD scope was previously limited to central invariants. | Expand the permanent policy to all implementation-affecting changes. | `CONTRIBUTING.md`, ADR 0005, and `docs/governance/strict-tdd-evidence.md`. | Remediated for future work. |
 
 ## Follow-up governance notes
 

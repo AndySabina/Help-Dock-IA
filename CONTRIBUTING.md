@@ -34,7 +34,22 @@ This check blocks common private or unsafe files, including:
 
 ## Strict TDD delivery gate
 
-Strict TDD is a project policy for central product invariants. Phase 0 has no application test runner yet, so this repository only carries the policy and public-safety checks. Phase 1 must add the executable app/test harness before shipping product code that depends on those invariants.
+Strict TDD is mandatory for every implementation-affecting change, not only central product invariants. This includes product code, scripts, CI, tooling, executable documentation, cleanup automation, migrations, configuration behavior, and any change that can alter runtime, verification, or delivery behavior.
+
+Docs-only narrative edits are docs-safe when they do not change executable behavior. They still need normal review, public-safety checks, and a clear statement that no implementation behavior changed.
+
+Every implementation-affecting pull request must provide failing-test-first evidence before merge:
+
+| Evidence field | Required content |
+| --- | --- |
+| RED | The failing test, command, log, or CI artifact captured before the implementation change. |
+| GREEN | The passing command, log, or CI artifact after the minimum implementation change. |
+| REFACTOR | The post-refactor passing command, or `None needed` when no refactor was performed. |
+| Scope | The behavior protected by the test and the files or packages affected. |
+
+Exceptions are allowed only when automation is not viable for the specific change. An exception must name the owner, reason, compensating control, expiry or follow-up, and reviewer approval. Historical work without captured RED evidence must be recorded as `historical evidence absent; no compliance claim` instead of being retroactively marked compliant.
+
+See `docs/governance/strict-tdd-evidence.md` for the evidence checklist used by reviewers.
 
 ## Rules for public commits
 
