@@ -72,6 +72,25 @@ function startsPascalCaseWord(content, index) {
   return isUppercaseAsciiLetter(currentCharacter) && isLowercaseAsciiLetter(nextCharacter);
 }
 
+function isUppercaseAcronym(content, index, length) {
+  const value = content.slice(index, index + length);
+
+  return value.length === length && [...value].every(isUppercaseAsciiLetter);
+}
+
+function startsAcronymProductTermAfterPrefix(content, index, length) {
+  const previousCharacter = content[index - 1] ?? "";
+  const nextCharacter = content[index + length] ?? "";
+  const characterAfterNext = content[index + length + 1] ?? "";
+
+  return (
+    isUppercaseAsciiLetter(previousCharacter) &&
+    isUppercaseAcronym(content, index, length) &&
+    isUppercaseAsciiLetter(nextCharacter) &&
+    isLowercaseAsciiLetter(characterAfterNext)
+  );
+}
+
 function containsProductTerm(content, termVariants) {
   const normalizedContent = content.toLowerCase();
 
@@ -88,7 +107,8 @@ function containsProductTerm(content, termVariants) {
         !previousCharacter ||
         !isAsciiLetter(previousCharacter) ||
         (isLowercaseAsciiLetter(previousCharacter) && isUppercaseAsciiLetter(currentCharacter)) ||
-        (isUppercaseAsciiLetter(previousCharacter) && startsPascalCaseWord(content, index));
+        (isUppercaseAsciiLetter(previousCharacter) && startsPascalCaseWord(content, index)) ||
+        startsAcronymProductTermAfterPrefix(content, index, term.length);
       const endsAtBoundary =
         !nextCharacter ||
         !isAsciiLetter(nextCharacter) ||
@@ -163,7 +183,11 @@ test("Phase 1 product term guard catches product terms in common identifier comp
     "HTTPDashboardConfig",
     "UITicket",
     "RBACGuard",
-    "RAGPipeline"
+    "RAGPipeline",
+    "APIRAGPipeline",
+    "HTTPRAGClient",
+    "APIRBACGuard",
+    "HTTPRBACMiddleware"
   ]) {
     assert.ok(productTermsIn(`const ${identifier} = true;`).length > 0, `missed ${identifier}`);
   }
