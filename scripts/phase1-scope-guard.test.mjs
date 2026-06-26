@@ -21,17 +21,17 @@ const allowedSourceFiles = new Set([
 ]);
 
 const forbiddenProductTerms = [
-  /rbac/,
-  /permissions?/,
-  /roles?/,
-  /tickets?/,
-  /conversations?/,
-  /rag/,
-  /embeddings?/,
-  /ingestions?/,
-  /dashboards?/,
-  /audits?/,
-  /privacy|privacies/
+  ["rbac"],
+  ["permission", "permissions"],
+  ["role", "roles"],
+  ["ticket", "tickets"],
+  ["conversation", "conversations"],
+  ["rag"],
+  ["embedding", "embeddings"],
+  ["ingestion", "ingestions"],
+  ["dashboard", "dashboards"],
+  ["audit", "audits"],
+  ["privacy", "privacies"]
 ];
 
 const allowedApiRoutes = new Set(["/health"]);
@@ -53,8 +53,47 @@ function workspaceSourceFiles() {
     .sort();
 }
 
-function containsProductTerm(content, term) {
-  return new RegExp(`(^|[^a-z])${term.source}([^a-z]|$)`, "iu").test(content);
+function isAsciiLetter(character) {
+  return /^[a-z]$/iu.test(character);
+}
+
+function isUppercaseAsciiLetter(character) {
+  return /^[A-Z]$/.test(character);
+}
+
+function isLowercaseAsciiLetter(character) {
+  return /^[a-z]$/.test(character);
+}
+
+function containsProductTerm(content, termVariants) {
+  const normalizedContent = content.toLowerCase();
+
+  return termVariants.some((term) => {
+    let index = normalizedContent.indexOf(term);
+
+    while (index !== -1) {
+      const previousCharacter = content[index - 1] ?? "";
+      const currentCharacter = content[index] ?? "";
+      const termEndCharacter = content[index + term.length - 1] ?? "";
+      const nextCharacter = content[index + term.length] ?? "";
+      const startsAtBoundary =
+        !previousCharacter ||
+        !isAsciiLetter(previousCharacter) ||
+        (isLowercaseAsciiLetter(previousCharacter) && isUppercaseAsciiLetter(currentCharacter));
+      const endsAtBoundary =
+        !nextCharacter ||
+        !isAsciiLetter(nextCharacter) ||
+        (isLowercaseAsciiLetter(termEndCharacter) && isUppercaseAsciiLetter(nextCharacter));
+
+      if (startsAtBoundary && endsAtBoundary) {
+        return true;
+      }
+
+      index = normalizedContent.indexOf(term, index + 1);
+    }
+
+    return false;
+  });
 }
 
 function productTermsIn(content) {
@@ -71,7 +110,7 @@ test("Phase 1 source tree stays within the approved shell-only file list", () =>
 
 test("Phase 1 source files do not introduce product feature terms", () => {
   for (const path of workspaceSourceFiles()) {
-    const content = readFileSync(path, "utf8").toLowerCase();
+    const content = readFileSync(path, "utf8");
     const leakedTerms = productTermsIn(content);
 
     assert.deepEqual(leakedTerms, [], `${path} contains product-scope terms`);
@@ -96,6 +135,32 @@ test("Phase 1 product term guard catches singular and normal plural variants", (
     "audits"
   ]) {
     assert.equal(productTermsIn(`adds ${term} behavior`).length, 1, `missed ${term}`);
+  }
+});
+
+test("Phase 1 product term guard catches product terms in common identifier compounds", () => {
+  for (const identifier of [
+    "ticketRoute",
+    "ticketsRoute",
+    "permissionCheck",
+    "dashboardConfig",
+    "TicketRoute",
+    "getTicketRoute"
+  ]) {
+    assert.equal(productTermsIn(`const ${identifier} = true;`).length, 1, `missed ${identifier}`);
+  }
+});
+
+test("Phase 1 product term guard allows approved shell-only compound identifiers", () => {
+  for (const identifier of [
+    "healthRoute",
+    "healthRoutes",
+    "notFoundResponse",
+    "serverConfig",
+    "widgetShell",
+    "workerConfig"
+  ]) {
+    assert.deepEqual(productTermsIn(`const ${identifier} = true;`), [], `flagged ${identifier}`);
   }
 });
 
