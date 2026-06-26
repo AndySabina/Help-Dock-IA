@@ -78,16 +78,27 @@ function isUppercaseAcronym(content, index, length) {
   return value.length === length && [...value].every(isUppercaseAsciiLetter);
 }
 
+function uppercaseAcronymPrefixLength(content, index) {
+  let cursor = index - 1;
+
+  while (cursor >= 0 && isUppercaseAsciiLetter(content[cursor] ?? "")) {
+    cursor -= 1;
+  }
+
+  return index - cursor - 1;
+}
+
 function startsAcronymProductTermAfterPrefix(content, index, length) {
   const previousCharacter = content[index - 1] ?? "";
   const nextCharacter = content[index + length] ?? "";
   const characterAfterNext = content[index + length + 1] ?? "";
+  const hasAcronymPrefix = uppercaseAcronymPrefixLength(content, index) >= 2;
 
   return (
     isUppercaseAsciiLetter(previousCharacter) &&
     isUppercaseAcronym(content, index, length) &&
-    isUppercaseAsciiLetter(nextCharacter) &&
-    isLowercaseAsciiLetter(characterAfterNext)
+    ((isUppercaseAsciiLetter(nextCharacter) && isLowercaseAsciiLetter(characterAfterNext)) ||
+      (hasAcronymPrefix && (!nextCharacter || !isAsciiLetter(nextCharacter))))
   );
 }
 
@@ -187,7 +198,13 @@ test("Phase 1 product term guard catches product terms in common identifier comp
     "APIRAGPipeline",
     "HTTPRAGClient",
     "APIRBACGuard",
-    "HTTPRBACMiddleware"
+    "HTTPRBACMiddleware",
+    "APIRAG",
+    "HTTPRAG",
+    "APIRBAC",
+    "HTTPRBAC",
+    "UIRAG",
+    "UIRBAC"
   ]) {
     assert.ok(productTermsIn(`const ${identifier} = true;`).length > 0, `missed ${identifier}`);
   }
@@ -199,6 +216,9 @@ test("Phase 1 product term guard allows approved shell-only compound identifiers
     "healthRoutes",
     "notFoundResponse",
     "OBJECT_STORAGE",
+    "OBJECT_STORAGE_ACCESS_KEY_ID",
+    "PUBLIC_APP_URL",
+    "NODE_ENV",
     "serverConfig",
     "widgetShell",
     "workerConfig"
