@@ -8,6 +8,7 @@ This roadmap is the planning and review index for HelpDock AI. It keeps phase or
 | --- | --- | --- |
 | Phase 0 foundation decisions | Verified — committed in `c8ac4a5` | Use `docs/decisions/0001-0005` as the implementation baseline. |
 | Phase 1 project skeleton | Archived with warnings — Engram `sdd/phase-1-project-foundation/archive-report` | Treat the project foundation as complete; keep warnings visible until follow-up cleanup is approved. |
+| Strict TDD governance and cleanup | Verified — PR #17 merged, Issue #16 closed, and safe-to-delete cleanup completed | Require strict TDD evidence for every implementation-affecting change; preserve remaining cleanup items unless explicitly approved. |
 | Product implementation | Not started — Phase 2 is the next foundation phase | Start Phase 2 governance/data foundations; do not skip directly to later product features. |
 | Public production traffic | Not allowed | Wait until Phase 13 release gates and operational evidence are complete. |
 
@@ -60,6 +61,7 @@ This roadmap is the planning and review index for HelpDock AI. It keeps phase or
 | `docs/decisions/0004-rag-retention-deletion-replay-and-release-thresholds.md` | Scoped public-widget RAG, retention defaults, release thresholds, eval minimums, cost caps, hallucination blocker, documentation gap SLA, and deletion replay release gate. | Preserve | Phases 2, 4, 5, 9, 11-13 and RAG/deletion/runbook invariant suites. | ADR 0004 thresholds, cost caps, gap SLA, and consequences. | Quantitative release gates must remain explicit so production activation cannot happen by accident. |
 | `docs/decisions/0005-quality-gates-public-safety-and-phase-1-readiness.md` | Phase 1 readiness baseline, public-safety gates, synthetic examples only, no production traffic, executable harness expectations, and release exception ownership. | Preserve | Phase 1, DW-6/DW-9, [Current status](#current-status), and maintenance checklist. | ADR 0005 decision and consequences; Engram Phase 1 archive evidence. | Phase 1 is archived as foundation work while warnings and public-safety gates remain visible. |
 | Engram `sdd/phase-1-project-foundation/archive-report` | Phase 1 completed as a technical foundation and archived with warnings; product behavior remains out of scope. | Preserve | [Current status](#current-status), DW-4/DW-6/DW-7/DW-9, [Canonical 0-13 status map](#canonical-0-13-status-map), and [Phase 1](#phase-1--project-skeleton). | Engram archive report and prior verification evidence. | Status changes must reconcile with SDD evidence instead of stale roadmap text. |
+| Engram `sdd/strict-tdd-and-deep-cleanup/archive-report` and PR #17 | Strict TDD governance now applies to every implementation-affecting change; safe-to-delete cleanup work is complete; remaining preserved cleanup items are intentional and non-blocking. | Preserve | [Current status](#current-status), DW-9, [Phase 1 warning ledger](#phase-1-warning-ledger), and [Governance and cleanup completion note](#governance-and-cleanup-completion-note). | PR #17 merged, Issue #16 closed, Engram archive report, post-merge verification, and final cleanup verification. | This updates roadmap status without inventing a new phase or retroactively claiming missing Phase 1 RED evidence. |
 | Future `*roadmap*.md` files or competing roadmap sections | Any new planning sequence, phase plan, milestone list, release roadmap, or status model outside this file. | Supersede | Copy any missing roadmap-critical commitments into this ledger and the relevant phase/status section, then replace competing content with a link or remove it after review. | Future source review. | Supersede only after preservation review; this prevents roadmap drift while preserving client commitments and review evidence. |
 
 ### Deep source review update targets
@@ -70,7 +72,7 @@ This roadmap is the planning and review index for HelpDock AI. It keeps phase or
 | The 9-parent delivery workflow must guide delivery without replacing phases 0-13. | Global delivery workflow status and child status rows. | Preserve both hierarchies; parent statuses derive from direct children only. |
 | Strict failing-test-first evidence now applies to every implementation-affecting change. | DW-9 and cross-phase invariant suites. | Preserve as blocking delivery governance; docs-only narrative edits remain docs-safe only when they do not change executable behavior. |
 | Self-hosted data boundary, processor consent, deletion replay, public safety, and release gates are release-blocking. | Phases 2, 5, 10-13, decision baseline, and invariant suites. | Preserve as phase gates and release criteria. |
-| Repo-cleanliness/auditability governance and Markdown validation automation are valuable but outside this slice. | Follow-up governance notes. | Preserve as future SDD follow-up; do not implement scripts or new repo-cleanliness rules here. |
+| Repo-cleanliness/auditability governance and Markdown validation automation are active for roadmap/docs safety, while broader cleanup remains owner-gated. | Follow-up governance notes. | Preserve completed safe-to-delete cleanup evidence; do not treat intentionally preserved branches, stashes, PRs, issues, or tracked generated context as blockers. |
 
 ## Decision baseline
 
@@ -111,7 +113,7 @@ Status derivation rules: leaf statuses are updated from evidence; parent and int
 | DW-6 | Create development environment | Archived | Phase 1 | Engram `sdd/phase-1-project-foundation/archive-report` | Keep local setup, CI, smoke, and public-safety gates active. |
 | DW-7 | Create production/staging environment early | In progress | Phases 1, 12, 13 | Phase 1 local/CI evidence archived; staging/production evidence planned | Add environment evidence before production activation. |
 | DW-8 | Iterate with client feedback | Planned | Phases 7, 8, 9, 10 | Ticket, dashboard, gap, eval, and processor-operation phases planned | Capture feedback as requirements before implementing changes. |
-| DW-9 | Always work with TDD | In progress | Phase 1 and cross-phase invariant suites | Phase 1 test harness archived with warning; permanent strict TDD governance now applies to all implementation-affecting changes | Require failing-test-first evidence or an approved exception for every implementation-affecting change. |
+| DW-9 | Always work with TDD | In progress | Phase 1 and cross-phase invariant suites | Phase 1 test harness archived with warning; PR #17 merged strict TDD governance for all implementation-affecting changes | Require failing-test-first evidence or an approved exception for every implementation-affecting change. |
 
 ### Delivery workflow child status rows
 
@@ -133,6 +135,7 @@ These parseable child rows make parent status derivation auditable without repla
 | DW-8.1 | DW-8 | Phases 7-10 feedback and quality loops | Planned | Ticketing, dashboard, gaps/evals, processor operations planned | All direct children are planned; DW-8 derives `Planned`. |
 | DW-9.1 | DW-9 | Phase 1 test harness | Archived | Engram Phase 1 archive warning remains visible; historical RED evidence remains absent where not captured | Mixed with planned invariant suites; DW-9 derives `In progress`; do not make retroactive TDD compliance claims. |
 | DW-9.2 | DW-9 | Cross-phase security/privacy invariant suites | Planned | Scope, visibility, RBAC, audit, processor, token, deletion, and runbook suites below | Planned child keeps DW-9 active. |
+| DW-9.3 | DW-9 | Strict TDD governance policy | Verified | PR #17 merged and Issue #16 closed after verification | Future implementation-affecting changes require failing-test-first evidence or an explicit approved exception; historical Phase 1 gaps remain historical. |
 
 ### Canonical 0-13 status map
 
@@ -736,12 +739,23 @@ Before merging roadmap changes, verify:
 | --- | --- | --- | --- |
 | Historical RED evidence was not captured for every Phase 1 foundation change. | Preserve the warning; do not retroactively claim strict TDD compliance. | Engram `sdd/phase-1-project-foundation/archive-report` and current repository gates. | Historical evidence absent; no compliance claim. |
 | Current Phase 1 gates remain executable after archive. | Keep CI, public-safety, test, coverage, docs, scope, and Compose smoke checks active. | `.github/workflows/ci.yml`, `README.md`, `scripts/*`, and package scripts. | Current gates verified by future PR checks. |
-| Strict TDD scope was previously limited to central invariants. | Expand the permanent policy to all implementation-affecting changes. | `CONTRIBUTING.md`, ADR 0005, and `docs/governance/strict-tdd-evidence.md`. | Remediated for future work. |
+| Strict TDD scope was previously limited to central invariants. | Permanent policy now covers all implementation-affecting changes. | PR #17, Issue #16, `CONTRIBUTING.md`, ADR 0005, and `docs/governance/strict-tdd-evidence.md`. | Remediated for future work; docs-only roadmap narrative updates remain docs-safe when they do not change executable behavior. |
+
+## Governance and cleanup completion note
+
+`strict-tdd-and-deep-cleanup` is complete as a governance and cleanup workstream: PR #17 is merged, Issue #16 is closed, and approved safe-to-delete cleanup has been executed and verified. The completed cleanup does not change the canonical phase order; Phase 2 remains the next product foundation phase.
+
+Remaining preserved items are intentional and non-blocking unless a maintainer explicitly approves a later cleanup action:
+
+- Phase 1 historical RED evidence gaps stay visible; the roadmap must not claim retroactive strict TDD compliance.
+- Strict TDD governance now prevents the same evidence gap from recurring for future implementation-affecting changes.
+- Preserved local stashes, the safety snapshot branch, public PR/issue audit history, and any tracked/generated context under owner review are not blockers for starting Phase 2.
+- Future destructive cleanup, remote mutation, branch deletion, stash drop, or GitHub mutation still requires explicit approval and verification.
 
 ## Follow-up governance notes
 
 - Add a future roadmap validation script after this Markdown contract stabilizes. The script should parse the schema marker, allowed status vocabulary, parent workflow table, canonical phase map, and parent/child derivation rules.
-- Create a separate SDD change for repository cleanliness and auditability. That rule is intentionally out of scope for this roadmap governance slice.
+- Create a separate SDD change only for new repository cleanliness or auditability automation beyond the completed safe-to-delete cleanup; preserved items remain intentional unless explicitly approved for action.
 
 ## First execution recommendation
 
