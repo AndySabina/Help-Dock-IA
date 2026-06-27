@@ -52,6 +52,9 @@ jobs:
       - name: Validate CI and setup docs
         run: pnpm ci:docs:test
 
+      - name: Validate governance docs
+        run: pnpm governance:docs:test
+
       - name: Enforce Phase 1 shell-only scope
         run: pnpm phase1:scope
 
