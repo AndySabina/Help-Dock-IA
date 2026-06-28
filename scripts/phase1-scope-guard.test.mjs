@@ -32,9 +32,18 @@ const approvedFullProductV1ProviderReadinessFiles = new Set([
   "packages/shared/src/domain/provider-readiness.ts"
 ]);
 
-const approvedProductSliceFiles = new Set(
-  [...approvedFullProductV1ProviderReadinessFiles].filter((path) => !allowedSourceFiles.has(path))
-);
+const approvedFullProductV1DocumentIngestionFiles = new Set([
+  ...approvedFullProductV1ProviderReadinessFiles,
+  "packages/shared/src/domain/document-ingestion.test.ts",
+  "packages/shared/src/domain/document-ingestion.ts"
+]);
+
+const approvedProductSliceFiles = new Set([
+  ...[...approvedFullProductV1DocumentIngestionFiles].filter(
+    (path) => !allowedSourceFiles.has(path)
+  ),
+  "packages/shared/src/index.ts"
+]);
 
 const forbiddenProductTerms = [
   ["rbac"],
@@ -81,6 +90,17 @@ function classifyWorkspaceScope(sourceFiles) {
   if (filesMatch(files, approvedFullProductV1ProviderReadinessFiles)) {
     return {
       mode: "full-product-v1-provider-readiness",
+      productFiles: sortedValues(
+        [...approvedFullProductV1ProviderReadinessFiles].filter(
+          (path) => !allowedSourceFiles.has(path)
+        )
+      )
+    };
+  }
+
+  if (filesMatch(files, approvedFullProductV1DocumentIngestionFiles)) {
+    return {
+      mode: "full-product-v1-document-ingestion",
       productFiles: sortedValues(approvedProductSliceFiles)
     };
   }
@@ -128,6 +148,20 @@ test("phase scope classifier accepts the approved full-product-v1 provider readi
     classifyWorkspaceScope(sortedValues(approvedFullProductV1ProviderReadinessFiles)),
     {
       mode: "full-product-v1-provider-readiness",
+      productFiles: sortedValues(
+        [...approvedFullProductV1ProviderReadinessFiles].filter(
+          (path) => !allowedSourceFiles.has(path)
+        )
+      )
+    }
+  );
+});
+
+test("phase scope classifier accepts the approved full-product-v1 document ingestion slice", () => {
+  assert.deepEqual(
+    classifyWorkspaceScope(sortedValues(approvedFullProductV1DocumentIngestionFiles)),
+    {
+      mode: "full-product-v1-document-ingestion",
       productFiles: sortedValues(approvedProductSliceFiles)
     }
   );
@@ -264,7 +298,8 @@ test("workspace source tree stays within an approved phase scope", () => {
     [
       "archived-phase-1",
       "full-product-v1-foundation",
-      "full-product-v1-provider-readiness"
+      "full-product-v1-provider-readiness",
+      "full-product-v1-document-ingestion"
     ].includes(scope.mode)
   );
 });
