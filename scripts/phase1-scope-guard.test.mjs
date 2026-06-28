@@ -38,10 +38,14 @@ const approvedFullProductV1DocumentIngestionFiles = new Set([
   "packages/shared/src/domain/document-ingestion.ts"
 ]);
 
+const approvedFullProductV1RagAnswerFiles = new Set([
+  ...approvedFullProductV1DocumentIngestionFiles,
+  "packages/shared/src/domain/rag-answer.test.ts",
+  "packages/shared/src/domain/rag-answer.ts"
+]);
+
 const approvedProductSliceFiles = new Set([
-  ...[...approvedFullProductV1DocumentIngestionFiles].filter(
-    (path) => !allowedSourceFiles.has(path)
-  ),
+  ...[...approvedFullProductV1RagAnswerFiles].filter((path) => !allowedSourceFiles.has(path)),
   "packages/shared/src/index.ts"
 ]);
 
@@ -101,6 +105,13 @@ function classifyWorkspaceScope(sourceFiles) {
   if (filesMatch(files, approvedFullProductV1DocumentIngestionFiles)) {
     return {
       mode: "full-product-v1-document-ingestion",
+      productFiles: sortedValues(approvedProductSliceFiles)
+    };
+  }
+
+  if (filesMatch(files, approvedFullProductV1RagAnswerFiles)) {
+    return {
+      mode: "full-product-v1-rag-answer-foundation",
       productFiles: sortedValues(approvedProductSliceFiles)
     };
   }
@@ -167,6 +178,19 @@ test("phase scope classifier accepts the approved full-product-v1 document inges
   );
 });
 
+test("phase scope classifier accepts the approved full-product-v1 RAG answer foundation slice", () => {
+  const ragAnswerFiles = sortedValues([
+    ...approvedFullProductV1DocumentIngestionFiles,
+    "packages/shared/src/domain/rag-answer.test.ts",
+    "packages/shared/src/domain/rag-answer.ts"
+  ]);
+
+  assert.deepEqual(classifyWorkspaceScope(ragAnswerFiles), {
+    mode: "full-product-v1-rag-answer-foundation",
+    productFiles: sortedValues(approvedProductSliceFiles)
+  });
+});
+
 test("phase scope classifier rejects unapproved product implementation files", () => {
   const unapprovedProductFiles = [...allowedSourceFiles, "apps/api/src/tickets.ts"].sort();
 
@@ -184,13 +208,37 @@ function listFiles(directory) {
   });
 }
 
+function isWorkspaceSourceFile(path) {
+  const segments = path.split("/");
+  const sourceIndex = segments.indexOf("src");
+
+  if (sourceIndex === -1) {
+    return false;
+  }
+
+  return !segments
+    .slice(0, sourceIndex)
+    .some((segment) =>
+      [".turbo", "build", "coverage", "dist", "generated", "node_modules"].includes(segment)
+    );
+}
+
 function workspaceSourceFiles() {
   return ["apps", "packages"]
     .flatMap((workspace) => listFiles(workspace))
     .map((path) => relative(process.cwd(), path).replaceAll("\\", "/"))
-    .filter((path) => path.includes("/src/"))
+    .filter(isWorkspaceSourceFile)
     .sort();
 }
+
+test("workspace source listing ignores generated coverage artifacts without weakening source governance", () => {
+  assert.equal(isWorkspaceSourceFile("packages/shared/src/index.ts"), true);
+  assert.equal(
+    isWorkspaceSourceFile("packages/shared/coverage/lcov-report/src/domain/foundation.ts.html"),
+    false
+  );
+  assert.ok(workspaceSourceFiles().includes("packages/shared/src/index.ts"));
+});
 
 function isAsciiLetter(character) {
   return /^[a-z]$/iu.test(character);
@@ -299,7 +347,8 @@ test("workspace source tree stays within an approved phase scope", () => {
       "archived-phase-1",
       "full-product-v1-foundation",
       "full-product-v1-provider-readiness",
-      "full-product-v1-document-ingestion"
+      "full-product-v1-document-ingestion",
+      "full-product-v1-rag-answer-foundation"
     ].includes(scope.mode)
   );
 });
