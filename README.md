@@ -52,12 +52,12 @@ pnpm test
 pnpm test:coverage
 pnpm ci:docs:test
 pnpm governance:docs:test
-pnpm phase1:scope
+pnpm phase:scope
 pnpm compose:smoke:test
 pnpm compose:smoke
 ```
 
-`pnpm ci:docs:test` validates that the CI workflow and this setup guide continue to document the required Phase 1 path. `pnpm governance:docs:test` validates that strict TDD evidence docs and the cleanup preservation ledger keep the required review contracts. `pnpm phase1:scope` blocks accidental product feature leakage by enforcing the approved shell-only source tree and route surface.
+`pnpm ci:docs:test` validates that the CI workflow and this setup guide continue to document the required Phase 1 path. `pnpm governance:docs:test` validates that strict TDD evidence docs and the cleanup preservation ledger keep the required review contracts. `pnpm phase:scope` blocks accidental scope leakage by enforcing either the archived Phase 1 shell-only source tree or an approved post-Phase-1 product slice. Run `pnpm phase1:scope:archived` when you need to prove the historical shell-only Phase 1 tree specifically.
 
 ## Docker Compose smoke path
 
@@ -83,8 +83,8 @@ The smoke command validates configuration shape, starts the stack, waits for ser
 | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | Clone → configure → boot → test works locally            | `pnpm install --frozen-lockfile`, `.env.example`, `pnpm test`, `pnpm compose:smoke`            |
 | CI blocks broken tests, config, smoke, and safety checks | `.github/workflows/ci.yml`, `pnpm ci:docs:test`, `pnpm compose:smoke:test`, `pnpm public-safe` |
-| Test harness evidence remains reviewable                 | `pnpm test`, `pnpm test:coverage`, `pnpm phase1:scope`                                         |
-| No product feature behavior ships in Phase 1             | `pnpm phase1:scope` and the shell-only app/package tree                                        |
+| Test harness evidence remains reviewable                 | `pnpm test`, `pnpm test:coverage`, `pnpm phase:scope`                                          |
+| No product feature behavior ships in Phase 1             | `pnpm phase1:scope:archived` and the shell-only app/package tree                               |
 
 ## CI expectations
 
@@ -95,7 +95,7 @@ The `CI` workflow runs Phase 1 gates in this order:
 3. Lint, format, typecheck, tests, and coverage.
 4. CI/docs regression test.
 5. Governance docs regression test.
-6. Phase 1 shell-only scope guard.
+6. Approved phase scope guard.
 7. Compose smoke test and runtime Compose smoke validation.
 
 The existing `Public safety` workflow remains in place as a focused guard for unsafe files, secrets, local paths, and unsupported lockfiles.
