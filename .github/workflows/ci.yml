@@ -55,8 +55,8 @@ jobs:
       - name: Validate governance docs
         run: pnpm governance:docs:test
 
-      - name: Enforce Phase 1 shell-only scope
-        run: pnpm phase1:scope
+      - name: Enforce approved phase scope
+        run: pnpm phase:scope
 
       - name: Validate Compose smoke script
         run: pnpm compose:smoke:test

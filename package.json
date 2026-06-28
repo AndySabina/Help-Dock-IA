@@ -18,7 +18,9 @@
     "compose:smoke:test": "node --test scripts/compose-smoke.test.mjs",
     "ci:docs:test": "node --test scripts/ci-docs.test.mjs",
     "governance:docs:test": "node --test scripts/governance-docs.test.mjs",
-    "phase1:scope": "node --test scripts/phase1-scope-guard.test.mjs"
+    "phase:scope": "node --test scripts/phase1-scope-guard.test.mjs",
+    "phase1:scope": "pnpm phase:scope",
+    "phase1:scope:archived": "PHASE_SCOPE_MODE=archived-phase-1 node --test scripts/phase1-scope-guard.test.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

@@ -42,8 +42,8 @@ test("governance docs check is available locally and in CI", () => {
   );
   assert.ok(
     workflowCommandIndex(workflow, "pnpm governance:docs:test") <
-      workflowCommandIndex(workflow, "pnpm phase1:scope"),
-    "governance docs check should run before Phase 1 scope enforcement"
+      workflowCommandIndex(workflow, "pnpm phase:scope"),
+    "governance docs check should run before phase scope enforcement"
   );
   requireText(readme, "pnpm governance:docs:test", "README verification commands");
 });

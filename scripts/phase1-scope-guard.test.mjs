@@ -20,6 +20,16 @@ const allowedSourceFiles = new Set([
   "packages/shared/src/index.ts"
 ]);
 
+const approvedFullProductV1FoundationFiles = new Set([
+  ...allowedSourceFiles,
+  "packages/shared/src/domain/foundation.test.ts",
+  "packages/shared/src/domain/foundation.ts"
+]);
+
+const approvedProductSliceFiles = new Set(
+  [...approvedFullProductV1FoundationFiles].filter((path) => !allowedSourceFiles.has(path))
+);
+
 const forbiddenProductTerms = [
   ["rbac"],
   ["permission", "permissions"],
@@ -36,6 +46,76 @@ const forbiddenProductTerms = [
 
 const allowedApiRoutes = new Set(["/health"]);
 const routeLiteralPattern = /["'`]\/[a-z0-9._~!$&'()*+,;=:@%/-]*["'`]/giu;
+const expectedWorkspaceMode = process.env.PHASE_SCOPE_MODE ?? "auto";
+
+function sortedValues(values) {
+  return [...values].sort();
+}
+
+function filesMatch(files, approvedFiles) {
+  return files.length === approvedFiles.size && files.every((path) => approvedFiles.has(path));
+}
+
+function classifyWorkspaceScope(sourceFiles) {
+  const files = [...sourceFiles].sort();
+
+  if (filesMatch(files, allowedSourceFiles)) {
+    return { mode: "archived-phase-1", productFiles: [] };
+  }
+
+  if (filesMatch(files, approvedFullProductV1FoundationFiles)) {
+    return {
+      mode: "full-product-v1-foundation",
+      productFiles: sortedValues(approvedProductSliceFiles)
+    };
+  }
+
+  const approvedPostPhase1Files = new Set([...allowedSourceFiles, ...approvedProductSliceFiles]);
+  const unapprovedFiles = files.filter((path) => !approvedPostPhase1Files.has(path));
+  const missingFiles = sortedValues(approvedPostPhase1Files).filter(
+    (path) => !files.includes(path)
+  );
+
+  throw new Error(
+    [
+      "Workspace has unapproved post-Phase-1 source files.",
+      `Unapproved files: ${unapprovedFiles.join(", ") || "none"}.`,
+      `Missing files from an approved scope: ${missingFiles.join(", ") || "none"}.`
+    ].join(" ")
+  );
+}
+
+test("phase scope classifier keeps the archived Phase 1 shell-only tree strict", () => {
+  assert.deepEqual(classifyWorkspaceScope([...allowedSourceFiles].sort()), {
+    mode: "archived-phase-1",
+    productFiles: []
+  });
+});
+
+test("phase scope classifier accepts the approved full-product-v1 foundation slice", () => {
+  const fullProductFoundationFiles = [
+    ...allowedSourceFiles,
+    "packages/shared/src/domain/foundation.test.ts",
+    "packages/shared/src/domain/foundation.ts"
+  ].sort();
+
+  assert.deepEqual(classifyWorkspaceScope(fullProductFoundationFiles), {
+    mode: "full-product-v1-foundation",
+    productFiles: [
+      "packages/shared/src/domain/foundation.test.ts",
+      "packages/shared/src/domain/foundation.ts"
+    ]
+  });
+});
+
+test("phase scope classifier rejects unapproved product implementation files", () => {
+  const unapprovedProductFiles = [...allowedSourceFiles, "apps/api/src/tickets.ts"].sort();
+
+  assert.throws(
+    () => classifyWorkspaceScope(unapprovedProductFiles),
+    /unapproved post-Phase-1 source files/
+  );
+});
 
 function listFiles(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -147,16 +227,42 @@ function routeLiteralsIn(content) {
   return [...content.matchAll(routeLiteralPattern)].map((match) => match[0].slice(1, -1));
 }
 
-test("Phase 1 source tree stays within the approved shell-only file list", () => {
-  assert.deepEqual(workspaceSourceFiles(), [...allowedSourceFiles].sort());
+test("workspace source tree stays within an approved phase scope", () => {
+  const scope = classifyWorkspaceScope(workspaceSourceFiles());
+
+  if (expectedWorkspaceMode !== "auto") {
+    assert.equal(scope.mode, expectedWorkspaceMode);
+    return;
+  }
+
+  assert.ok(["archived-phase-1", "full-product-v1-foundation"].includes(scope.mode));
 });
 
 test("Phase 1 source files do not introduce product feature terms", () => {
+  const scope = classifyWorkspaceScope(workspaceSourceFiles());
+
   for (const path of workspaceSourceFiles()) {
+    if (scope.productFiles.includes(path)) {
+      continue;
+    }
+
     const content = readFileSync(path, "utf8");
     const leakedTerms = productTermsIn(content);
 
     assert.deepEqual(leakedTerms, [], `${path} contains product-scope terms`);
+  }
+});
+
+test("post-Phase-1 product terms stay confined to approved product slice files", () => {
+  const scope = classifyWorkspaceScope(workspaceSourceFiles());
+
+  if (scope.mode === "archived-phase-1") {
+    assert.deepEqual(scope.productFiles, []);
+    return;
+  }
+
+  for (const path of scope.productFiles) {
+    assert.ok(approvedProductSliceFiles.has(path), `${path} is not an approved product slice file`);
   }
 });
 
