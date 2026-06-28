@@ -26,8 +26,14 @@ const approvedFullProductV1FoundationFiles = new Set([
   "packages/shared/src/domain/foundation.ts"
 ]);
 
+const approvedFullProductV1ProviderReadinessFiles = new Set([
+  ...approvedFullProductV1FoundationFiles,
+  "packages/shared/src/domain/provider-readiness.test.ts",
+  "packages/shared/src/domain/provider-readiness.ts"
+]);
+
 const approvedProductSliceFiles = new Set(
-  [...approvedFullProductV1FoundationFiles].filter((path) => !allowedSourceFiles.has(path))
+  [...approvedFullProductV1ProviderReadinessFiles].filter((path) => !allowedSourceFiles.has(path))
 );
 
 const forbiddenProductTerms = [
@@ -66,6 +72,15 @@ function classifyWorkspaceScope(sourceFiles) {
   if (filesMatch(files, approvedFullProductV1FoundationFiles)) {
     return {
       mode: "full-product-v1-foundation",
+      productFiles: sortedValues(
+        [...approvedFullProductV1FoundationFiles].filter((path) => !allowedSourceFiles.has(path))
+      )
+    };
+  }
+
+  if (filesMatch(files, approvedFullProductV1ProviderReadinessFiles)) {
+    return {
+      mode: "full-product-v1-provider-readiness",
       productFiles: sortedValues(approvedProductSliceFiles)
     };
   }
@@ -106,6 +121,16 @@ test("phase scope classifier accepts the approved full-product-v1 foundation sli
       "packages/shared/src/domain/foundation.ts"
     ]
   });
+});
+
+test("phase scope classifier accepts the approved full-product-v1 provider readiness slice", () => {
+  assert.deepEqual(
+    classifyWorkspaceScope(sortedValues(approvedFullProductV1ProviderReadinessFiles)),
+    {
+      mode: "full-product-v1-provider-readiness",
+      productFiles: sortedValues(approvedProductSliceFiles)
+    }
+  );
 });
 
 test("phase scope classifier rejects unapproved product implementation files", () => {
@@ -235,7 +260,13 @@ test("workspace source tree stays within an approved phase scope", () => {
     return;
   }
 
-  assert.ok(["archived-phase-1", "full-product-v1-foundation"].includes(scope.mode));
+  assert.ok(
+    [
+      "archived-phase-1",
+      "full-product-v1-foundation",
+      "full-product-v1-provider-readiness"
+    ].includes(scope.mode)
+  );
 });
 
 test("Phase 1 source files do not introduce product feature terms", () => {
