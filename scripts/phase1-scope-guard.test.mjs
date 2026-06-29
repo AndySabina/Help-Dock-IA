@@ -50,8 +50,16 @@ const approvedFullProductV1WidgetReadinessFiles = new Set([
   "packages/shared/src/domain/widget-readiness.ts"
 ]);
 
+const approvedFullProductV1TicketFoundationFiles = new Set([
+  ...approvedFullProductV1WidgetReadinessFiles,
+  "packages/shared/src/domain/ticket-support.test.ts",
+  "packages/shared/src/domain/ticket-support.ts"
+]);
+
 const approvedProductSliceFiles = new Set([
-  ...[...approvedFullProductV1WidgetReadinessFiles].filter((path) => !allowedSourceFiles.has(path)),
+  ...[...approvedFullProductV1TicketFoundationFiles].filter(
+    (path) => !allowedSourceFiles.has(path)
+  ),
   "packages/shared/src/index.ts"
 ]);
 
@@ -125,6 +133,13 @@ function classifyWorkspaceScope(sourceFiles) {
   if (filesMatch(files, approvedFullProductV1WidgetReadinessFiles)) {
     return {
       mode: "full-product-v1-widget-readiness-foundation",
+      productFiles: sortedValues(approvedProductSliceFiles)
+    };
+  }
+
+  if (filesMatch(files, approvedFullProductV1TicketFoundationFiles)) {
+    return {
+      mode: "full-product-v1-ticket-foundation",
       productFiles: sortedValues(approvedProductSliceFiles)
     };
   }
@@ -213,6 +228,19 @@ test("phase scope classifier accepts the approved full-product-v1 widget readine
 
   assert.deepEqual(classifyWorkspaceScope(widgetReadinessFiles), {
     mode: "full-product-v1-widget-readiness-foundation",
+    productFiles: sortedValues(approvedProductSliceFiles)
+  });
+});
+
+test("phase scope classifier accepts the approved full-product-v1 ticket foundation slice", () => {
+  const ticketFoundationFiles = sortedValues([
+    ...approvedFullProductV1WidgetReadinessFiles,
+    "packages/shared/src/domain/ticket-support.test.ts",
+    "packages/shared/src/domain/ticket-support.ts"
+  ]);
+
+  assert.deepEqual(classifyWorkspaceScope(ticketFoundationFiles), {
+    mode: "full-product-v1-ticket-foundation",
     productFiles: sortedValues(approvedProductSliceFiles)
   });
 });
@@ -375,7 +403,8 @@ test("workspace source tree stays within an approved phase scope", () => {
       "full-product-v1-provider-readiness",
       "full-product-v1-document-ingestion",
       "full-product-v1-rag-answer-foundation",
-      "full-product-v1-widget-readiness-foundation"
+      "full-product-v1-widget-readiness-foundation",
+      "full-product-v1-ticket-foundation"
     ].includes(scope.mode)
   );
 });
