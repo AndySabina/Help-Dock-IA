@@ -8,3 +8,4 @@ export * from "./domain/provider-readiness.ts";
 export * from "./domain/rag-answer.ts";
 export * from "./domain/ticket-support.ts";
 export * from "./domain/widget-readiness.ts";
+export * from "./domain/dashboard-hardening.ts";
