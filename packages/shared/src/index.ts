@@ -5,3 +5,4 @@ export type HealthStatus = "ok" | "degraded";
 export * from "./domain/foundation.ts";
 export * from "./domain/document-ingestion.ts";
 export * from "./domain/provider-readiness.ts";
+export * from "./domain/rag-answer.ts";
