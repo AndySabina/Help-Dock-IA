@@ -44,8 +44,14 @@ const approvedFullProductV1RagAnswerFiles = new Set([
   "packages/shared/src/domain/rag-answer.ts"
 ]);
 
+const approvedFullProductV1WidgetReadinessFiles = new Set([
+  ...approvedFullProductV1RagAnswerFiles,
+  "packages/shared/src/domain/widget-readiness.test.ts",
+  "packages/shared/src/domain/widget-readiness.ts"
+]);
+
 const approvedProductSliceFiles = new Set([
-  ...[...approvedFullProductV1RagAnswerFiles].filter((path) => !allowedSourceFiles.has(path)),
+  ...[...approvedFullProductV1WidgetReadinessFiles].filter((path) => !allowedSourceFiles.has(path)),
   "packages/shared/src/index.ts"
 ]);
 
@@ -112,6 +118,13 @@ function classifyWorkspaceScope(sourceFiles) {
   if (filesMatch(files, approvedFullProductV1RagAnswerFiles)) {
     return {
       mode: "full-product-v1-rag-answer-foundation",
+      productFiles: sortedValues(approvedProductSliceFiles)
+    };
+  }
+
+  if (filesMatch(files, approvedFullProductV1WidgetReadinessFiles)) {
+    return {
+      mode: "full-product-v1-widget-readiness-foundation",
       productFiles: sortedValues(approvedProductSliceFiles)
     };
   }
@@ -187,6 +200,19 @@ test("phase scope classifier accepts the approved full-product-v1 RAG answer fou
 
   assert.deepEqual(classifyWorkspaceScope(ragAnswerFiles), {
     mode: "full-product-v1-rag-answer-foundation",
+    productFiles: sortedValues(approvedProductSliceFiles)
+  });
+});
+
+test("phase scope classifier accepts the approved full-product-v1 widget readiness foundation slice", () => {
+  const widgetReadinessFiles = sortedValues([
+    ...approvedFullProductV1RagAnswerFiles,
+    "packages/shared/src/domain/widget-readiness.test.ts",
+    "packages/shared/src/domain/widget-readiness.ts"
+  ]);
+
+  assert.deepEqual(classifyWorkspaceScope(widgetReadinessFiles), {
+    mode: "full-product-v1-widget-readiness-foundation",
     productFiles: sortedValues(approvedProductSliceFiles)
   });
 });
@@ -348,7 +374,8 @@ test("workspace source tree stays within an approved phase scope", () => {
       "full-product-v1-foundation",
       "full-product-v1-provider-readiness",
       "full-product-v1-document-ingestion",
-      "full-product-v1-rag-answer-foundation"
+      "full-product-v1-rag-answer-foundation",
+      "full-product-v1-widget-readiness-foundation"
     ].includes(scope.mode)
   );
 });

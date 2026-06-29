@@ -175,6 +175,15 @@ describe("SMTP and widget domain readiness contracts", () => {
     expect(isAllowedWidgetDomain("https://[::1]:4173", ["[::1]"], "production")).toBe(false);
   });
 
+  it("rejects insecure development origins on non-local allowed domains", () => {
+    expect(
+      isAllowedWidgetDomain("http://docs.example.com", ["docs.example.com"], "development")
+    ).toBe(false);
+    expect(
+      isAllowedWidgetDomain("https://docs.example.com", ["docs.example.com"], "development")
+    ).toBe(true);
+  });
+
   it("rejects loopback-equivalent hosts outside development", () => {
     expect(
       validateAllowedWidgetDomains(

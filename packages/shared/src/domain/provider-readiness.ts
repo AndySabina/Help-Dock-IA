@@ -322,7 +322,10 @@ export function isAllowedWidgetDomain(
     return false;
   }
 
-  if (url.protocol !== "https:" && !(environment === "development" && url.protocol === "http:")) {
+  if (
+    url.protocol !== "https:" &&
+    !(environment === "development" && url.protocol === "http:" && isDevelopmentHost(hostname))
+  ) {
     return false;
   }
 
