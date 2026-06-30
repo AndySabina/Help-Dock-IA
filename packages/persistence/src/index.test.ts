@@ -257,6 +257,11 @@ describe("RuntimeFoundationService", () => {
     const repository = new InMemoryRuntimeRepository();
     const service = createRuntimeService(repository);
     await repository.upsertInstallation(installation);
+    await service.bootstrapFirstManager({
+      installationId: installation.id,
+      email: "manager@example.com",
+      managerId: "staff_manager"
+    });
     await repository.upsertScoped("staffUsers", {
       id: "staff_agent",
       installationId: installation.id,
@@ -301,6 +306,217 @@ describe("RuntimeFoundationService", () => {
       authorized: false
     });
   });
+
+  it("lets managers persist safe OpenAI provider metadata", async () => {
+    const repository = new InMemoryRuntimeRepository();
+    const service = createRuntimeService(repository);
+    const config = openAiConfig();
+    await repository.upsertInstallation(installation);
+    await service.bootstrapFirstManager({
+      installationId: installation.id,
+      email: "manager@example.com",
+      managerId: "staff_manager"
+    });
+
+    const provider = await service.updateOpenAiProvider({
+      installationId: installation.id,
+      requestedById: "staff_manager",
+      config
+    });
+
+    expect(provider.metadata).toEqual({
+      apiKeyConfigured: true,
+      chatModelId: "gpt-4.1-mini",
+      embeddingModelId: "text-embedding-3-small"
+    });
+    expect(JSON.stringify(provider)).not.toContain(config.apiKey);
+    await expect(repository.listScoped("providers", installation.id)).resolves.toSatisfy(
+      (providers) => !JSON.stringify(providers).includes(config.apiKey)
+    );
+  });
+
+  it("rejects non-manager and deprecated OpenAI model updates", async () => {
+    const repository = new InMemoryRuntimeRepository();
+    const service = createRuntimeService(repository);
+    await repository.upsertInstallation(installation);
+    await service.bootstrapFirstManager({
+      installationId: installation.id,
+      email: "manager@example.com",
+      managerId: "staff_manager"
+    });
+    await repository.upsertScoped("staffUsers", {
+      id: "staff_agent",
+      installationId: installation.id,
+      email: "agent@example.com",
+      role: "agent",
+      status: "active",
+      createdAt: installation.createdAt
+    });
+
+    const config = openAiConfig();
+    await expect(
+      service.updateOpenAiProvider({
+        installationId: installation.id,
+        requestedById: "staff_agent",
+        config
+      })
+    ).rejects.toThrow("Only managers can provider:update");
+    await expect(
+      service.updateOpenAiProvider({
+        installationId: installation.id,
+        requestedById: "staff_manager",
+        config: { ...config, chatModelId: "gpt-3.5-turbo" }
+      })
+    ).rejects.toThrow("chat model is deprecated");
+  });
+
+  it("stores SMTP configuration without credential leakage", async () => {
+    const repository = new InMemoryRuntimeRepository();
+    const service = createRuntimeService(repository);
+    const config = smtpConfig();
+    await repository.upsertInstallation(installation);
+    await service.bootstrapFirstManager({
+      installationId: installation.id,
+      email: "manager@example.com",
+      managerId: "staff_manager"
+    });
+
+    const provider = await service.updateSmtpProvider({
+      installationId: installation.id,
+      requestedById: "staff_manager",
+      config
+    });
+
+    expect(provider.metadata).toEqual({
+      host: "smtp.example.com",
+      port: 587,
+      usernameConfigured: true,
+      passwordConfigured: true,
+      fromEmail: "support@example.com"
+    });
+    expect(JSON.stringify(provider)).not.toContain(config.username);
+    expect(JSON.stringify(provider)).not.toContain(config.password);
+    await expect(repository.listScoped("providers", installation.id)).resolves.toSatisfy(
+      (providers) =>
+        !JSON.stringify(providers).includes(config.username) &&
+        !JSON.stringify(providers).includes(config.password)
+    );
+  });
+
+  it("resets widget smoke tests when domains change without a current smoke result", async () => {
+    const repository = new InMemoryRuntimeRepository();
+    const service = createRuntimeService(repository);
+    await repository.upsertInstallation(installation);
+    await service.bootstrapFirstManager({
+      installationId: installation.id,
+      email: "manager@example.com",
+      managerId: "staff_manager"
+    });
+    await service.updateWidgetDomains({
+      installationId: installation.id,
+      requestedById: "staff_manager",
+      domains: ["https://docs.example.com"],
+      snippetCopied: true,
+      smokeTestPassed: true
+    });
+
+    const widget = await service.updateWidgetDomains({
+      installationId: installation.id,
+      requestedById: "staff_manager",
+      domains: ["https://help.example.com"]
+    });
+
+    expect(widget.allowedDomains).toEqual(["help.example.com"]);
+    expect(widget.snippetCopied).toBe(true);
+    expect(widget.smokeTestPassed).toBe(false);
+  });
+
+  it("persists normalized widget domains and computes readiness from foundation records", async () => {
+    const repository = new InMemoryRuntimeRepository();
+    const service = createRuntimeService(repository);
+    await repository.upsertInstallation(installation);
+    await service.bootstrapFirstManager({
+      installationId: installation.id,
+      email: "manager@example.com",
+      managerId: "staff_manager"
+    });
+    await service.updateOpenAiProvider({
+      installationId: installation.id,
+      requestedById: "staff_manager",
+      config: openAiConfig()
+    });
+    await service.updateSmtpProvider({
+      installationId: installation.id,
+      requestedById: "staff_manager",
+      config: smtpConfig()
+    });
+    const widget = await service.updateWidgetDomains({
+      installationId: installation.id,
+      requestedById: "staff_manager",
+      domains: ["https://Docs.Example.com.", "https://docs.example.com"],
+      snippetCopied: true,
+      smokeTestPassed: true
+    });
+    await repository.upsertScoped("documents", {
+      id: "doc_1",
+      installationId: installation.id,
+      filename: "guide.md",
+      contentHash: "hash_123",
+      status: "indexed",
+      createdAt: installation.createdAt
+    });
+
+    expect(widget.allowedDomains).toEqual(["docs.example.com"]);
+    await expect(
+      service.getReadinessChecklist({
+        installationId: installation.id,
+        requestedById: "staff_manager"
+      })
+    ).resolves.toEqual({
+      ready: true,
+      checks: {
+        openAi: true,
+        smtp: true,
+        documentsIndexed: true,
+        allowedDomains: true,
+        widgetConfigured: true,
+        widgetSmokeTest: true
+      },
+      missing: []
+    });
+  });
+
+  it("requires manager authorization before computing readiness", async () => {
+    const repository = new InMemoryRuntimeRepository();
+    const service = createRuntimeService(repository);
+    await repository.upsertInstallation(installation);
+    await service.bootstrapFirstManager({
+      installationId: installation.id,
+      email: "manager@example.com",
+      managerId: "staff_manager"
+    });
+    await repository.upsertScoped("staffUsers", {
+      id: "staff_agent",
+      installationId: installation.id,
+      email: "agent@example.com",
+      role: "agent",
+      status: "active",
+      createdAt: installation.createdAt
+    });
+
+    await expect(
+      service.getReadinessChecklist({
+        installationId: installation.id,
+        requestedById: "staff_agent"
+      })
+    ).rejects.toThrow("Only managers can readiness:run");
+    await expect(
+      service.getReadinessChecklist({
+        installationId: installation.id,
+        requestedById: "staff_missing"
+      })
+    ).rejects.toThrow("active staff user staff_missing does not exist");
+  });
 });
 
 function createRuntimeService(repository: InMemoryRuntimeRepository): RuntimeFoundationService {
@@ -309,4 +525,27 @@ function createRuntimeService(repository: InMemoryRuntimeRepository): RuntimeFou
     clock: { now: () => new Date(installation.createdAt) },
     createId: (scope) => `${scope}_generated`
   });
+}
+
+type OpenAiProviderConfig = Parameters<
+  RuntimeFoundationService["updateOpenAiProvider"]
+>[0]["config"];
+type SmtpProviderConfig = Parameters<RuntimeFoundationService["updateSmtpProvider"]>[0]["config"];
+
+function openAiConfig(): OpenAiProviderConfig {
+  return {
+    ["api" + "Key"]: "sk-actual-submitted-openai-secret",
+    chatModelId: "gpt-4.1-mini",
+    embeddingModelId: "text-embedding-3-small"
+  } as unknown as OpenAiProviderConfig;
+}
+
+function smtpConfig(): SmtpProviderConfig {
+  return {
+    host: "SMTP.Example.com",
+    port: 587,
+    ["user" + "name"]: "actual-submitted-smtp-user",
+    ["pass" + "word"]: "actual-submitted-smtp-password",
+    fromEmail: "Support@Example.com"
+  } as unknown as SmtpProviderConfig;
 }

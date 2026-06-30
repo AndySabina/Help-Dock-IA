@@ -1,11 +1,19 @@
 import {
+  createReadinessChecklist,
   createStaffInvitation,
   isActionAllowed,
   resolveSetupState,
   type FoundationAction,
+  type OpenAiConfigInput,
+  type ReadinessChecklist,
+  type RuntimeEnvironment,
   type SetupState,
+  type SmtpConfigInput,
   type StaffRole,
-  type TicketStatus
+  type TicketStatus,
+  validateAllowedWidgetDomains,
+  validateOpenAiConfig,
+  validateSmtpConfig
 } from "@helpdock/shared";
 import { randomUUID } from "node:crypto";
 
@@ -63,7 +71,14 @@ export const runtimeFoundationMigration: RuntimeMigrationMetadata = {
       "created_at"
     ]),
     table("providers", ["id", "installation_id", "kind", "configured", "metadata", "updated_at"]),
-    table("widgets", ["id", "installation_id", "allowed_domains", "snippet_copied", "updated_at"]),
+    table("widgets", [
+      "id",
+      "installation_id",
+      "allowed_domains",
+      "snippet_copied",
+      "smoke_test_passed",
+      "updated_at"
+    ]),
     table("documents", [
       "id",
       "installation_id",
@@ -153,6 +168,7 @@ export interface ProviderRecord extends ScopedRecord {
 export interface WidgetRecord extends ScopedRecord {
   allowedDomains: string[];
   snippetCopied: boolean;
+  smokeTestPassed: boolean;
   updatedAt: string;
 }
 
@@ -246,6 +262,32 @@ export interface CreateStaffInvitationRecordInput {
   invitationId?: string;
 }
 
+export interface UpdateOpenAiProviderInput {
+  installationId: string;
+  requestedById: string;
+  config: OpenAiConfigInput;
+}
+
+export interface UpdateSmtpProviderInput {
+  installationId: string;
+  requestedById: string;
+  config: SmtpConfigInput;
+}
+
+export interface UpdateWidgetDomainsInput {
+  installationId: string;
+  requestedById: string;
+  domains: readonly string[];
+  environment?: RuntimeEnvironment;
+  snippetCopied?: boolean;
+  smokeTestPassed?: boolean;
+}
+
+export interface GetReadinessChecklistInput {
+  installationId: string;
+  requestedById: string;
+}
+
 export interface AuthorizeRuntimeActionInput {
   role: StaffRole;
   action: FoundationAction;
@@ -321,8 +363,124 @@ export class RuntimeFoundationService {
     return invitation;
   }
 
+  async updateOpenAiProvider(input: UpdateOpenAiProviderInput): Promise<ProviderRecord> {
+    await this.#assertAuthorizedStaff(input.installationId, input.requestedById, "provider:update");
+
+    const validation = validateOpenAiConfig(input.config);
+    if (!validation.ok) {
+      throw new Error(validation.issues.join("; "));
+    }
+
+    const provider: ProviderRecord = {
+      id: "provider_openai",
+      installationId: input.installationId,
+      kind: "openai",
+      configured: true,
+      metadata: {
+        apiKeyConfigured: true,
+        chatModelId: input.config.chatModelId,
+        embeddingModelId: input.config.embeddingModelId
+      },
+      updatedAt: this.#clock.now().toISOString()
+    };
+
+    await this.#repository.upsertScoped("providers", provider);
+
+    return provider;
+  }
+
+  async updateSmtpProvider(input: UpdateSmtpProviderInput): Promise<ProviderRecord> {
+    await this.#assertAuthorizedStaff(input.installationId, input.requestedById, "provider:update");
+
+    const validation = validateSmtpConfig(input.config);
+    if (!validation.ok) {
+      throw new Error(validation.issues.join("; "));
+    }
+
+    const provider: ProviderRecord = {
+      id: "provider_smtp",
+      installationId: input.installationId,
+      kind: "smtp",
+      configured: true,
+      metadata: {
+        host: input.config.host.trim().toLowerCase(),
+        port: input.config.port,
+        usernameConfigured: input.config.username.trim().length > 0,
+        passwordConfigured: true,
+        fromEmail: input.config.fromEmail.trim().toLowerCase()
+      },
+      updatedAt: this.#clock.now().toISOString()
+    };
+
+    await this.#repository.upsertScoped("providers", provider);
+
+    return provider;
+  }
+
+  async updateWidgetDomains(input: UpdateWidgetDomainsInput): Promise<WidgetRecord> {
+    await this.#assertAuthorizedStaff(input.installationId, input.requestedById, "domains:update");
+
+    const validation = validateAllowedWidgetDomains(
+      input.domains,
+      input.environment ?? "production"
+    );
+    if (!validation.ok) {
+      throw new Error(validation.issues.join("; "));
+    }
+
+    const [existing] = await this.#repository.listScoped("widgets", input.installationId);
+    const widget: WidgetRecord = {
+      id: existing?.id ?? "widget_default",
+      installationId: input.installationId,
+      allowedDomains: validation.domains,
+      snippetCopied: input.snippetCopied ?? existing?.snippetCopied ?? false,
+      smokeTestPassed: input.smokeTestPassed ?? false,
+      updatedAt: this.#clock.now().toISOString()
+    };
+
+    await this.#repository.upsertScoped("widgets", widget);
+
+    return widget;
+  }
+
+  async getReadinessChecklist(input: GetReadinessChecklistInput): Promise<ReadinessChecklist> {
+    await this.#assertAuthorizedStaff(input.installationId, input.requestedById, "readiness:run");
+
+    const [providers, widgets, documents] = await Promise.all([
+      this.#repository.listScoped("providers", input.installationId),
+      this.#repository.listScoped("widgets", input.installationId),
+      this.#repository.listScoped("documents", input.installationId)
+    ]);
+    const openAiProvider = providers.find((provider) => provider.kind === "openai");
+    const smtpProvider = providers.find((provider) => provider.kind === "smtp");
+    const [widget] = widgets;
+
+    return createReadinessChecklist({
+      openAiConfigured: openAiProvider?.configured ?? false,
+      smtpConfigured: smtpProvider?.configured ?? false,
+      hasIndexedDocuments: documents.some((document) => document.status === "indexed"),
+      hasAllowedDomain: (widget?.allowedDomains.length ?? 0) > 0,
+      widgetSnippetCopied: widget?.snippetCopied ?? false,
+      widgetSmokeTestPassed: widget?.smokeTestPassed ?? false
+    });
+  }
+
   authorizeAction(input: AuthorizeRuntimeActionInput): RuntimeActionAuthorization {
     return { authorized: isActionAllowed(input.role, input.action) };
+  }
+
+  async #assertAuthorizedStaff(
+    installationId: string,
+    staffUserId: string,
+    action: FoundationAction
+  ): Promise<StaffUserRecord> {
+    const staffUser = await this.#findActiveStaffUser(installationId, staffUserId);
+
+    if (!this.authorizeAction({ role: staffUser.role, action }).authorized) {
+      throw new Error(`Only managers can ${action}`);
+    }
+
+    return staffUser;
   }
 
   async #findActiveStaffUser(
