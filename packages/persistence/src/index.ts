@@ -1,8 +1,16 @@
 import {
+  chunkMarkdownDocument,
+  createDocumentContentMetadata,
+  createDocumentDeletionPlan,
+  createDocumentIndexingReadinessSignal,
   createReadinessChecklist,
   createStaffInvitation,
+  findDuplicateChunks,
+  findExactDocumentDuplicate,
   isActionAllowed,
   resolveSetupState,
+  type DocumentDeletionPlan,
+  type DocumentIndexingReadinessSignal,
   type FoundationAction,
   type OpenAiConfigInput,
   type ReadinessChecklist,
@@ -84,6 +92,7 @@ export const runtimeFoundationMigration: RuntimeMigrationMetadata = {
       "installation_id",
       "filename",
       "content_hash",
+      "byte_length",
       "status",
       "created_at"
     ]),
@@ -175,6 +184,7 @@ export interface WidgetRecord extends ScopedRecord {
 export interface DocumentRecord extends ScopedRecord {
   filename: string;
   contentHash: string;
+  byteLength: number;
   status: DocumentStatus;
   createdAt: string;
 }
@@ -226,6 +236,9 @@ export type RuntimeCollectionName = keyof RuntimeRecords;
 export interface RuntimeRepository {
   upsertInstallation(record: InstallationRecord): Promise<void>;
   insertFirstStaffUser(record: StaffUserRecord): Promise<void>;
+  insertMarkdownDocumentUpload(
+    input: InsertMarkdownDocumentUploadInput
+  ): Promise<InsertMarkdownDocumentUploadResult>;
   upsertScoped<K extends Exclude<RuntimeCollectionName, "installations">>(
     collection: K,
     record: RuntimeRecords[K]
@@ -238,6 +251,21 @@ export interface RuntimeRepository {
 
 export interface RuntimeClock {
   now(): Date;
+}
+
+export interface InsertMarkdownDocumentUploadInput {
+  installationId: string;
+  filename: string;
+  content: string;
+  contentHash: string;
+  byteLength: number;
+  createdAt: string;
+}
+
+export interface InsertMarkdownDocumentUploadResult {
+  document: DocumentRecord;
+  chunks: DocumentChunkRecord[];
+  duplicate: { exact: true; documentId: string; contentHash: string } | { exact: false };
 }
 
 export type RuntimeIdFactory = (scope: "staff" | "invitation") => string;
@@ -286,6 +314,33 @@ export interface UpdateWidgetDomainsInput {
 export interface GetReadinessChecklistInput {
   installationId: string;
   requestedById: string;
+}
+
+export interface UploadMarkdownDocumentInput {
+  installationId: string;
+  requestedById: string;
+  filename: string;
+  content: string;
+}
+
+export interface UploadMarkdownDocumentResult {
+  document: DocumentRecord;
+  chunks: DocumentChunkRecord[];
+  duplicate: { exact: true; documentId: string; contentHash: string } | { exact: false };
+  duplicateChunkGroups: ReturnType<typeof findDuplicateChunks>;
+  indexingReadiness: DocumentIndexingReadinessSignal;
+}
+
+export interface DeleteDocumentInput {
+  installationId: string;
+  requestedById: string;
+  documentId: string;
+}
+
+export interface DeleteDocumentResult {
+  document: DocumentRecord;
+  deletionPlan: DocumentDeletionPlan;
+  indexingReadiness: DocumentIndexingReadinessSignal;
 }
 
 export interface AuthorizeRuntimeActionInput {
@@ -465,6 +520,86 @@ export class RuntimeFoundationService {
     });
   }
 
+  async uploadMarkdownDocument(
+    input: UploadMarkdownDocumentInput
+  ): Promise<UploadMarkdownDocumentResult> {
+    await this.#assertAuthorizedStaff(
+      input.installationId,
+      input.requestedById,
+      "documents:upload"
+    );
+
+    const metadata = createDocumentContentMetadata({
+      filename: input.filename,
+      content: input.content
+    });
+    const { document, chunks, duplicate } = await this.#repository.insertMarkdownDocumentUpload({
+      installationId: input.installationId,
+      filename: metadata.filename,
+      content: input.content,
+      contentHash: metadata.contentHash,
+      byteLength: metadata.byteLength,
+      createdAt: this.#clock.now().toISOString()
+    });
+
+    return {
+      document,
+      chunks,
+      duplicate,
+      duplicateChunkGroups: findDuplicateChunks(chunks),
+      indexingReadiness: await this.getDocumentIndexingReadinessSignal(input)
+    };
+  }
+
+  async deleteDocument(input: DeleteDocumentInput): Promise<DeleteDocumentResult> {
+    const manager = await this.#assertAuthorizedStaff(
+      input.installationId,
+      input.requestedById,
+      "documents:delete"
+    );
+    const documents = await this.#repository.listScoped("documents", input.installationId);
+    const document = documents.find((candidate) => candidate.id === input.documentId);
+
+    if (!document || document.status === "deleted") {
+      throw new Error(`document ${input.documentId} does not exist`);
+    }
+
+    const chunks = (
+      await this.#repository.listScoped("documentChunks", input.installationId)
+    ).filter((chunk) => chunk.documentId === input.documentId);
+    const deletionPlan = createDocumentDeletionPlan({
+      documentId: input.documentId,
+      chunks: chunks.map((chunk) => ({ id: chunk.id, documentId: chunk.documentId })),
+      embeddings: [],
+      requestedByRole: manager.role
+    });
+    const deletedDocument: DocumentRecord = { ...document, status: "deleted" };
+
+    await this.#repository.upsertScoped("documents", deletedDocument);
+
+    return {
+      document: deletedDocument,
+      deletionPlan,
+      indexingReadiness: await this.getDocumentIndexingReadinessSignal(input)
+    };
+  }
+
+  async getDocumentIndexingReadinessSignal(
+    input: GetReadinessChecklistInput
+  ): Promise<DocumentIndexingReadinessSignal> {
+    await this.#assertAuthorizedStaff(input.installationId, input.requestedById, "readiness:run");
+
+    const documents = (await this.#repository.listScoped("documents", input.installationId)).filter(
+      (document) => document.status !== "deleted"
+    );
+
+    return createDocumentIndexingReadinessSignal({
+      indexedDocumentCount: documents.filter((document) => document.status === "indexed").length,
+      pendingDocumentCount: documents.filter((document) => document.status === "pending").length,
+      failedDocumentCount: documents.filter((document) => document.status === "failed").length
+    });
+  }
+
   authorizeAction(input: AuthorizeRuntimeActionInput): RuntimeActionAuthorization {
     return { authorized: isActionAllowed(input.role, input.action) };
   }
@@ -537,6 +672,81 @@ export class InMemoryRuntimeRepository implements RuntimeRepository {
     this.#collections.staffUsers.set(scopedRecordKey(record), structuredClone(record));
   }
 
+  async insertMarkdownDocumentUpload(
+    input: InsertMarkdownDocumentUploadInput
+  ): Promise<InsertMarkdownDocumentUploadResult> {
+    assertRequired(input.installationId, "installation id");
+    this.#assertInstallationExists(input.installationId);
+
+    const existingDocuments = [...this.#collections.documents.values()].filter(
+      (document) => document.installationId === input.installationId
+    );
+    const duplicate = findExactDocumentDuplicate(
+      input.contentHash,
+      existingDocuments
+        .filter((document) => document.status !== "deleted")
+        .map((document) => ({
+          documentId: document.id,
+          contentHash: document.contentHash
+        }))
+    );
+
+    if (duplicate.duplicate === true) {
+      const document = existingDocuments.find((candidate) => candidate.id === duplicate.documentId);
+
+      if (!document) {
+        throw new Error(`document ${duplicate.documentId} does not exist`);
+      }
+
+      const chunks = [...this.#collections.documentChunks.values()].filter(
+        (chunk) => chunk.installationId === input.installationId && chunk.documentId === document.id
+      );
+
+      return {
+        document: structuredClone(document),
+        chunks: chunks.map((chunk) => structuredClone(chunk)),
+        duplicate: {
+          exact: true,
+          documentId: duplicate.documentId,
+          contentHash: duplicate.contentHash
+        }
+      };
+    }
+
+    const documentId = createDocumentId(input.contentHash, existingDocuments.length);
+    const document: DocumentRecord = {
+      id: documentId,
+      installationId: input.installationId,
+      filename: input.filename,
+      contentHash: input.contentHash,
+      byteLength: input.byteLength,
+      status: "pending",
+      createdAt: input.createdAt
+    };
+    const chunks: DocumentChunkRecord[] = chunkMarkdownDocument({
+      documentId,
+      content: input.content
+    }).map((chunk) => ({
+      id: chunk.id,
+      installationId: input.installationId,
+      documentId: chunk.documentId,
+      ordinal: chunk.ordinal,
+      contentHash: chunk.contentHash,
+      text: chunk.text
+    }));
+
+    this.#collections.documents.set(scopedRecordKey(document), structuredClone(document));
+    for (const chunk of chunks) {
+      this.#collections.documentChunks.set(scopedRecordKey(chunk), structuredClone(chunk));
+    }
+
+    return {
+      document: structuredClone(document),
+      chunks: chunks.map((chunk) => structuredClone(chunk)),
+      duplicate: { exact: false }
+    };
+  }
+
   async upsertScoped<K extends ScopedCollectionName>(
     collection: K,
     record: RuntimeRecords[K]
@@ -600,4 +810,8 @@ function normalizeInvitationEmail(email: string): string {
 
 function createRuntimeId(scope: "staff" | "invitation"): string {
   return `${scope}_${randomUUID()}`;
+}
+
+function createDocumentId(contentHash: string, existingDocumentCount: number): string {
+  return `doc_${contentHash.slice(0, 12)}_${existingDocumentCount + 1}`;
 }
