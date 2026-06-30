@@ -62,10 +62,14 @@ const approvedFullProductV1DashboardHardeningFiles = new Set([
   "packages/shared/src/domain/dashboard-hardening.ts"
 ]);
 
+const approvedIssue37PersistenceFoundationFiles = new Set([
+  ...approvedFullProductV1DashboardHardeningFiles,
+  "packages/persistence/src/index.test.ts",
+  "packages/persistence/src/index.ts"
+]);
+
 const approvedProductSliceFiles = new Set([
-  ...[...approvedFullProductV1DashboardHardeningFiles].filter(
-    (path) => !allowedSourceFiles.has(path)
-  ),
+  ...[...approvedIssue37PersistenceFoundationFiles].filter((path) => !allowedSourceFiles.has(path)),
   "packages/shared/src/index.ts"
 ]);
 
@@ -153,6 +157,13 @@ function classifyWorkspaceScope(sourceFiles) {
   if (filesMatch(files, approvedFullProductV1DashboardHardeningFiles)) {
     return {
       mode: "full-product-v1-dashboard-hardening-foundation",
+      productFiles: sortedValues(approvedProductSliceFiles)
+    };
+  }
+
+  if (filesMatch(files, approvedIssue37PersistenceFoundationFiles)) {
+    return {
+      mode: "issue-37-persistence-foundation",
       productFiles: sortedValues(approvedProductSliceFiles)
     };
   }
@@ -263,6 +274,16 @@ test("phase scope classifier accepts the approved full-product-v1 dashboard hard
     classifyWorkspaceScope(sortedValues(approvedFullProductV1DashboardHardeningFiles)),
     {
       mode: "full-product-v1-dashboard-hardening-foundation",
+      productFiles: sortedValues(approvedProductSliceFiles)
+    }
+  );
+});
+
+test("phase scope classifier accepts the approved Issue 37 persistence foundation slice", () => {
+  assert.deepEqual(
+    classifyWorkspaceScope(sortedValues(approvedIssue37PersistenceFoundationFiles)),
+    {
+      mode: "issue-37-persistence-foundation",
       productFiles: sortedValues(approvedProductSliceFiles)
     }
   );
@@ -428,7 +449,8 @@ test("workspace source tree stays within an approved phase scope", () => {
       "full-product-v1-rag-answer-foundation",
       "full-product-v1-widget-readiness-foundation",
       "full-product-v1-ticket-foundation",
-      "full-product-v1-dashboard-hardening-foundation"
+      "full-product-v1-dashboard-hardening-foundation",
+      "issue-37-persistence-foundation"
     ].includes(scope.mode)
   );
 });

@@ -79,6 +79,12 @@ importers:
         specifier: ^4.0.15
         version: 4.1.9(vitest@4.1.9)
 
+  packages/persistence:
+    dependencies:
+      '@helpdock/shared':
+        specifier: workspace:*
+        version: link:../shared
+
   packages/shared: {}
 
 packages:
