@@ -106,6 +106,7 @@ describe("InMemoryRuntimeRepository", () => {
         installationId: installation.id,
         filename: "guide.md",
         contentHash: "hash_123",
+        byteLength: 12,
         status: "pending",
         createdAt: installation.createdAt
       })
@@ -462,6 +463,7 @@ describe("RuntimeFoundationService", () => {
       installationId: installation.id,
       filename: "guide.md",
       contentHash: "hash_123",
+      byteLength: 12,
       status: "indexed",
       createdAt: installation.createdAt
     });
@@ -484,6 +486,210 @@ describe("RuntimeFoundationService", () => {
       },
       missing: []
     });
+  });
+
+  it("lets managers upload Markdown documents with metadata and deterministic chunks", async () => {
+    const repository = new InMemoryRuntimeRepository();
+    const service = createRuntimeService(repository);
+    await repository.upsertInstallation(installation);
+    await service.bootstrapFirstManager({
+      installationId: installation.id,
+      email: "manager@example.com",
+      managerId: "staff_manager"
+    });
+
+    const result = await service.uploadMarkdownDocument({
+      installationId: installation.id,
+      requestedById: "staff_manager",
+      filename: " Guide.MD ",
+      content: "# Help\n\nUse the widget to ask questions."
+    });
+
+    expect(result.document).toMatchObject({
+      filename: "Guide.MD",
+      byteLength: Buffer.byteLength("# Help\n\nUse the widget to ask questions.", "utf8"),
+      status: "pending"
+    });
+    expect(result.duplicate).toEqual({ exact: false });
+    expect(result.chunks).toHaveLength(2);
+    expect(result.chunks.map((chunk) => chunk.ordinal)).toEqual([0, 1]);
+    expect(
+      result.chunks.every((chunk) => chunk.id.startsWith(`${result.document.id}:chunk:`))
+    ).toBe(true);
+    expect(result.indexingReadiness).toEqual({
+      hasIndexedDocuments: false,
+      indexingReady: false
+    });
+    await expect(repository.listScoped("documents", installation.id)).resolves.toHaveLength(1);
+    await expect(repository.listScoped("documentChunks", installation.id)).resolves.toHaveLength(2);
+  });
+
+  it("detects exact Markdown duplicates among non-deleted documents", async () => {
+    const repository = new InMemoryRuntimeRepository();
+    const service = createRuntimeService(repository);
+    const content = "# Duplicate\n\nSame content.";
+    await repository.upsertInstallation(installation);
+    await service.bootstrapFirstManager({
+      installationId: installation.id,
+      email: "manager@example.com",
+      managerId: "staff_manager"
+    });
+
+    const firstUpload = await service.uploadMarkdownDocument({
+      installationId: installation.id,
+      requestedById: "staff_manager",
+      filename: "first.md",
+      content
+    });
+    const secondUpload = await service.uploadMarkdownDocument({
+      installationId: installation.id,
+      requestedById: "staff_manager",
+      filename: "second.md",
+      content
+    });
+
+    expect(secondUpload.duplicate).toEqual({
+      exact: true,
+      documentId: firstUpload.document.id,
+      contentHash: firstUpload.document.contentHash
+    });
+    expect(secondUpload.document.id).toBe(firstUpload.document.id);
+    await expect(repository.listScoped("documents", installation.id)).resolves.toHaveLength(1);
+    await service.deleteDocument({
+      installationId: installation.id,
+      requestedById: "staff_manager",
+      documentId: firstUpload.document.id
+    });
+
+    await expect(
+      service.uploadMarkdownDocument({
+        installationId: installation.id,
+        requestedById: "staff_manager",
+        filename: "after-delete.md",
+        content
+      })
+    ).resolves.toMatchObject({
+      duplicate: { exact: false }
+    });
+  });
+
+  it("atomically reports concurrent same-content Markdown uploads as duplicates", async () => {
+    const repository = new InMemoryRuntimeRepository();
+    const service = createRuntimeService(repository);
+    const content = "# Retry Upload\n\nSame content submitted twice.";
+    await repository.upsertInstallation(installation);
+    await service.bootstrapFirstManager({
+      installationId: installation.id,
+      email: "manager@example.com",
+      managerId: "staff_manager"
+    });
+
+    const [firstUpload, secondUpload] = await Promise.all([
+      service.uploadMarkdownDocument({
+        installationId: installation.id,
+        requestedById: "staff_manager",
+        filename: "retry.md",
+        content
+      }),
+      service.uploadMarkdownDocument({
+        installationId: installation.id,
+        requestedById: "staff_manager",
+        filename: "retry-copy.md",
+        content
+      })
+    ]);
+    const uploads = [firstUpload, secondUpload];
+    const originalUpload = uploads.find((upload) => upload.duplicate.exact === false);
+    const duplicateUpload = uploads.find((upload) => upload.duplicate.exact === true);
+
+    expect(originalUpload).toBeDefined();
+    expect(duplicateUpload).toBeDefined();
+    expect(duplicateUpload?.document.id).toBe(originalUpload?.document.id);
+    expect(duplicateUpload?.duplicate).toEqual({
+      exact: true,
+      documentId: originalUpload?.document.id,
+      contentHash: originalUpload?.document.contentHash
+    });
+    await expect(repository.listScoped("documents", installation.id)).resolves.toHaveLength(1);
+    await expect(repository.listScoped("documentChunks", installation.id)).resolves.toHaveLength(
+      originalUpload?.chunks.length ?? 0
+    );
+  });
+
+  it("requires manager authorization and valid Markdown uploads", async () => {
+    const repository = new InMemoryRuntimeRepository();
+    const service = createRuntimeService(repository);
+    await repository.upsertInstallation(installation);
+    await service.bootstrapFirstManager({
+      installationId: installation.id,
+      email: "manager@example.com",
+      managerId: "staff_manager"
+    });
+    await repository.upsertScoped("staffUsers", {
+      id: "staff_agent",
+      installationId: installation.id,
+      email: "agent@example.com",
+      role: "agent",
+      status: "active",
+      createdAt: installation.createdAt
+    });
+
+    await expect(
+      service.uploadMarkdownDocument({
+        installationId: installation.id,
+        requestedById: "staff_agent",
+        filename: "guide.md",
+        content: "# Help"
+      })
+    ).rejects.toThrow("Only managers can documents:upload");
+    await expect(
+      service.uploadMarkdownDocument({
+        installationId: installation.id,
+        requestedById: "staff_manager",
+        filename: "guide.txt",
+        content: "# Help"
+      })
+    ).rejects.toThrow("document filename must end with .md");
+  });
+
+  it("marks documents deleted and returns a shared deletion plan", async () => {
+    const repository = new InMemoryRuntimeRepository();
+    const service = createRuntimeService(repository);
+    await repository.upsertInstallation(installation);
+    await service.bootstrapFirstManager({
+      installationId: installation.id,
+      email: "manager@example.com",
+      managerId: "staff_manager"
+    });
+    const upload = await service.uploadMarkdownDocument({
+      installationId: installation.id,
+      requestedById: "staff_manager",
+      filename: "guide.md",
+      content: "# Help\n\nDelete this document."
+    });
+
+    const deletion = await service.deleteDocument({
+      installationId: installation.id,
+      requestedById: "staff_manager",
+      documentId: upload.document.id
+    });
+
+    expect(deletion.document.status).toBe("deleted");
+    expect(deletion.deletionPlan).toEqual({
+      documentId: upload.document.id,
+      removeContent: true,
+      removeChunkIds: upload.chunks.map((chunk) => chunk.id),
+      removeEmbeddingIds: [],
+      retainAuditMetadata: { documentId: upload.document.id, action: "documents:delete" }
+    });
+    expect(deletion.indexingReadiness).toEqual({
+      hasIndexedDocuments: false,
+      indexingReady: false
+    });
+    await expect(repository.listScoped("documents", installation.id)).resolves.toMatchObject([
+      { id: upload.document.id, status: "deleted" }
+    ]);
+    await expect(repository.listScoped("documentChunks", installation.id)).resolves.toHaveLength(2);
   });
 
   it("requires manager authorization before computing readiness", async () => {
