@@ -1,4 +1,13 @@
-import type { StaffRole, TicketStatus } from "@helpdock/shared";
+import {
+  createStaffInvitation,
+  isActionAllowed,
+  resolveSetupState,
+  type FoundationAction,
+  type SetupState,
+  type StaffRole,
+  type TicketStatus
+} from "@helpdock/shared";
+import { randomUUID } from "node:crypto";
 
 export const PERSISTENCE_SCHEMA_VERSION = "2026_06_29_0001_runtime_foundation";
 
@@ -200,6 +209,7 @@ export type RuntimeCollectionName = keyof RuntimeRecords;
 
 export interface RuntimeRepository {
   upsertInstallation(record: InstallationRecord): Promise<void>;
+  insertFirstStaffUser(record: StaffUserRecord): Promise<void>;
   upsertScoped<K extends Exclude<RuntimeCollectionName, "installations">>(
     collection: K,
     record: RuntimeRecords[K]
@@ -208,6 +218,128 @@ export interface RuntimeRepository {
     collection: K,
     installationId: string
   ): Promise<RuntimeRecords[K][]>;
+}
+
+export interface RuntimeClock {
+  now(): Date;
+}
+
+export type RuntimeIdFactory = (scope: "staff" | "invitation") => string;
+
+export interface RuntimeFoundationServiceOptions {
+  repository: RuntimeRepository;
+  clock?: RuntimeClock;
+  createId?: RuntimeIdFactory;
+}
+
+export interface BootstrapFirstManagerInput {
+  installationId: string;
+  email: string;
+  managerId?: string;
+}
+
+export interface CreateStaffInvitationRecordInput {
+  installationId: string;
+  invitedById: string;
+  email: string;
+  role: StaffRole;
+  invitationId?: string;
+}
+
+export interface AuthorizeRuntimeActionInput {
+  role: StaffRole;
+  action: FoundationAction;
+}
+
+export interface RuntimeActionAuthorization {
+  authorized: boolean;
+}
+
+const systemClock: RuntimeClock = {
+  now: () => new Date()
+};
+
+export class RuntimeFoundationService {
+  readonly #repository: RuntimeRepository;
+  readonly #clock: RuntimeClock;
+  readonly #createId: RuntimeIdFactory;
+
+  constructor(options: RuntimeFoundationServiceOptions) {
+    this.#repository = options.repository;
+    this.#clock = options.clock ?? systemClock;
+    this.#createId = options.createId ?? createRuntimeId;
+  }
+
+  async getSetupState(installationId: string): Promise<SetupState> {
+    const users = await this.#repository.listScoped("staffUsers", installationId);
+
+    return resolveSetupState({ userCount: users.length });
+  }
+
+  async bootstrapFirstManager(input: BootstrapFirstManagerInput): Promise<StaffUserRecord> {
+    const setupState = await this.getSetupState(input.installationId);
+
+    if (!setupState.bootstrapRequired) {
+      throw new Error("Manager bootstrap is only allowed before staff users exist");
+    }
+
+    const manager: StaffUserRecord = {
+      id: input.managerId ?? this.#createId("staff"),
+      installationId: input.installationId,
+      email: normalizeEmail(input.email),
+      role: "manager",
+      status: "active",
+      createdAt: this.#clock.now().toISOString()
+    };
+
+    await this.#repository.insertFirstStaffUser(manager);
+
+    return manager;
+  }
+
+  async createStaffInvitationRecord(
+    input: CreateStaffInvitationRecordInput
+  ): Promise<StaffInvitationRecord> {
+    const inviter = await this.#findActiveStaffUser(input.installationId, input.invitedById);
+    const draft = createStaffInvitation({
+      invitedByRole: inviter.role,
+      email: normalizeInvitationEmail(input.email),
+      role: input.role
+    });
+    const invitation: StaffInvitationRecord = {
+      id: input.invitationId ?? this.#createId("invitation"),
+      installationId: input.installationId,
+      invitedById: input.invitedById,
+      email: draft.email,
+      role: draft.role,
+      status: draft.status,
+      createdAt: this.#clock.now().toISOString()
+    };
+
+    await this.#repository.upsertScoped("staffInvitations", invitation);
+
+    return invitation;
+  }
+
+  authorizeAction(input: AuthorizeRuntimeActionInput): RuntimeActionAuthorization {
+    return { authorized: isActionAllowed(input.role, input.action) };
+  }
+
+  async #findActiveStaffUser(
+    installationId: string,
+    staffUserId: string
+  ): Promise<StaffUserRecord> {
+    const staffUsers = await this.#repository.listScoped("staffUsers", installationId);
+    const staffUser = staffUsers.find(
+      (user) => user.id === staffUserId && user.status === "active"
+    );
+
+    if (!staffUser) {
+      throw new Error(`active staff user ${staffUserId} does not exist`);
+    }
+
+    return staffUser;
+  }
 }
 
 type ScopedCollectionName = Exclude<RuntimeCollectionName, "installations">;
@@ -231,6 +363,22 @@ export class InMemoryRuntimeRepository implements RuntimeRepository {
     this.#installations.set(record.id, structuredClone(record));
   }
 
+  async insertFirstStaffUser(record: StaffUserRecord): Promise<void> {
+    assertRequired(record.id, "record id");
+    assertRequired(record.installationId, "installation id");
+    this.#assertInstallationExists(record.installationId);
+
+    const hasStaffUsers = [...this.#collections.staffUsers.values()].some(
+      (staffUser) => staffUser.installationId === record.installationId
+    );
+
+    if (hasStaffUsers) {
+      throw new Error("Manager bootstrap is only allowed before staff users exist");
+    }
+
+    this.#collections.staffUsers.set(scopedRecordKey(record), structuredClone(record));
+  }
+
   async upsertScoped<K extends ScopedCollectionName>(
     collection: K,
     record: RuntimeRecords[K]
@@ -238,25 +386,60 @@ export class InMemoryRuntimeRepository implements RuntimeRepository {
     assertRequired(record.id, "record id");
     assertRequired(record.installationId, "installation id");
 
-    if (!this.#installations.has(record.installationId)) {
-      throw new Error(`installation ${record.installationId} does not exist`);
-    }
+    this.#assertInstallationExists(record.installationId);
 
-    this.#collections[collection].set(record.id, structuredClone(record));
+    this.#collections[collection].set(scopedRecordKey(record), structuredClone(record));
   }
 
   async listScoped<K extends ScopedCollectionName>(
     collection: K,
     installationId: string
   ): Promise<RuntimeRecords[K][]> {
+    assertRequired(installationId, "installation id");
+    this.#assertInstallationExists(installationId);
+
     return [...this.#collections[collection].values()]
       .filter((record) => record.installationId === installationId)
       .map((record) => structuredClone(record));
   }
+
+  #assertInstallationExists(installationId: string): void {
+    if (!this.#installations.has(installationId)) {
+      throw new Error(`installation ${installationId} does not exist`);
+    }
+  }
+}
+
+function scopedRecordKey(record: ScopedRecord): string {
+  return `${record.installationId}:${record.id}`;
 }
 
 function assertRequired(value: string, label: string): void {
   if (value.trim().length === 0) {
     throw new Error(`${label} is required`);
   }
+}
+
+function normalizeEmail(email: string): string {
+  const normalized = email.trim().toLowerCase();
+
+  if (normalized.length === 0) {
+    throw new Error("email is required");
+  }
+
+  return normalized;
+}
+
+function normalizeInvitationEmail(email: string): string {
+  const normalized = normalizeEmail(email);
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+    throw new Error("invitation email is invalid");
+  }
+
+  return normalized;
+}
+
+function createRuntimeId(scope: "staff" | "invitation"): string {
+  return `${scope}_${randomUUID()}`;
 }
