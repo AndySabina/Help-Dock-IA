@@ -372,6 +372,19 @@ export interface DeleteDocumentResult {
   indexingReadiness: DocumentIndexingReadinessSignal;
 }
 
+export interface PrepareDocumentEmbeddingJobsInput extends GetReadinessChecklistInput {
+  limit?: number;
+}
+
+export interface DocumentEmbeddingJob {
+  id: string;
+  installationId: string;
+  documentId: string;
+  chunkId: string;
+  contentHash: string;
+  text: string;
+}
+
 export interface AuthorizeRuntimeActionInput {
   role: StaffRole;
   action: FoundationAction;
@@ -599,7 +612,9 @@ export class RuntimeFoundationService {
     const deletionPlan = createDocumentDeletionPlan({
       documentId: input.documentId,
       chunks: chunks.map((chunk) => ({ id: chunk.id, documentId: chunk.documentId })),
-      embeddings: [],
+      embeddings: (await this.#repository.listScoped("documentEmbeddings", input.installationId))
+        .filter((embedding) => embedding.documentId === input.documentId)
+        .map((embedding) => ({ id: embedding.id, documentId: embedding.documentId })),
       requestedByRole: manager.role
     });
     const deletedDocument: DocumentRecord = { ...document, status: "deleted" };
@@ -631,8 +646,129 @@ export class RuntimeFoundationService {
     });
   }
 
+  async prepareDocumentEmbeddingJobs(
+    input: PrepareDocumentEmbeddingJobsInput
+  ): Promise<DocumentEmbeddingJob[]> {
+    await this.#assertAuthorizedStaff(input.installationId, input.requestedById, "readiness:run");
+    const limit = input.limit ?? Number.POSITIVE_INFINITY;
+
+    if (limit !== Number.POSITIVE_INFINITY && (!Number.isSafeInteger(limit) || limit < 1)) {
+      throw new Error("embedding job limit must be a positive integer");
+    }
+
+    const documents = await this.#repository.listScoped("documents", input.installationId);
+    const embeddableDocuments = documents
+      .filter(
+        (document) =>
+          document.status === "pending" ||
+          document.status === "indexing" ||
+          document.status === "failed"
+      )
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+    const chunks = await this.#repository.listScoped("documentChunks", input.installationId);
+    const embeddedChunkKeys = new Set(
+      (await this.#repository.listScoped("documentEmbeddings", input.installationId)).map(
+        (embedding) => `${embedding.chunkId}:${embedding.contentHash}`
+      )
+    );
+    const jobs: DocumentEmbeddingJob[] = [];
+
+    for (const document of embeddableDocuments) {
+      const documentJobs = chunks
+        .filter(
+          (chunk) =>
+            chunk.documentId === document.id &&
+            !embeddedChunkKeys.has(`${chunk.id}:${chunk.contentHash}`)
+        )
+        .sort((left, right) => left.ordinal - right.ordinal)
+        .map((chunk) => ({
+          id: `${chunk.id}:embedding-job`,
+          installationId: chunk.installationId,
+          documentId: document.id,
+          chunkId: chunk.id,
+          contentHash: chunk.contentHash,
+          text: chunk.text
+        }));
+
+      for (const job of documentJobs) {
+        if (jobs.length >= limit) {
+          break;
+        }
+        jobs.push(job);
+      }
+
+      if (jobs.length >= limit) {
+        break;
+      }
+    }
+
+    const selectedDocumentIds = new Set(jobs.map((job) => job.documentId));
+    const claimedDocumentIds = new Set<string>();
+
+    for (const document of embeddableDocuments) {
+      if (
+        selectedDocumentIds.has(document.id) &&
+        (await this.#repository.updateDocumentStatusIfActive(
+          input.installationId,
+          document.id,
+          "indexing"
+        ))
+      ) {
+        claimedDocumentIds.add(document.id);
+      }
+    }
+
+    const fullyEmbeddedDocumentIds = new Set(
+      embeddableDocuments
+        .filter((document) => !selectedDocumentIds.has(document.id))
+        .filter((document) => {
+          const documentChunks = chunks.filter((chunk) => chunk.documentId === document.id);
+
+          return documentChunks.every((chunk) =>
+            embeddedChunkKeys.has(`${chunk.id}:${chunk.contentHash}`)
+          );
+        })
+        .map((document) => document.id)
+    );
+
+    if (fullyEmbeddedDocumentIds.size > 0) {
+      await this.#settleEmbeddedDocumentStatuses(input.installationId, fullyEmbeddedDocumentIds);
+    }
+
+    return jobs.filter((job) => claimedDocumentIds.has(job.documentId));
+  }
+
   authorizeAction(input: AuthorizeRuntimeActionInput): RuntimeActionAuthorization {
     return { authorized: isActionAllowed(input.role, input.action) };
+  }
+
+  async #settleEmbeddedDocumentStatuses(
+    installationId: string,
+    documentIds: ReadonlySet<string>
+  ): Promise<void> {
+    const documents = await this.#repository.listScoped("documents", installationId);
+    const chunks = await this.#repository.listScoped("documentChunks", installationId);
+    const embeddings = await this.#repository.listScoped("documentEmbeddings", installationId);
+
+    for (const document of documents) {
+      if (!documentIds.has(document.id) || document.status === "deleted") {
+        continue;
+      }
+
+      const documentChunks = chunks.filter((chunk) => chunk.documentId === document.id);
+      const embeddedChunkKeys = new Set(
+        embeddings
+          .filter((embedding) => embedding.documentId === document.id)
+          .map((embedding) => `${embedding.chunkId}:${embedding.contentHash}`)
+      );
+      const nextStatus = documentChunks.every((chunk) =>
+        embeddedChunkKeys.has(`${chunk.id}:${chunk.contentHash}`)
+      )
+        ? "indexed"
+        : "pending";
+
+      await this.#repository.updateDocumentStatusIfActive(installationId, document.id, nextStatus);
+    }
   }
 
   async #assertAuthorizedStaff(
