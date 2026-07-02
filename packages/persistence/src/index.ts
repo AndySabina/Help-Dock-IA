@@ -35,6 +35,7 @@ export type RuntimeTableName =
   | "widgets"
   | "documents"
   | "document_chunks"
+  | "document_embeddings"
   | "documentation_gaps"
   | "tickets"
   | "audit_events";
@@ -104,6 +105,17 @@ export const runtimeFoundationMigration: RuntimeMigrationMetadata = {
       "content_hash",
       "text"
     ]),
+    table("document_embeddings", [
+      "id",
+      "installation_id",
+      "document_id",
+      "chunk_id",
+      "content_hash",
+      "model_id",
+      "dimensions",
+      "vector",
+      "created_at"
+    ]),
     table("documentation_gaps", [
       "id",
       "installation_id",
@@ -135,7 +147,7 @@ export const runtimeFoundationMigration: RuntimeMigrationMetadata = {
 export type StaffUserStatus = "active" | "disabled";
 export type InvitationStatus = "pending" | "accepted" | "revoked";
 export type ProviderKind = "openai" | "smtp";
-export type DocumentStatus = "pending" | "indexed" | "failed" | "deleted";
+export type DocumentStatus = "pending" | "indexing" | "indexed" | "failed" | "deleted";
 export type DocumentationGapStatus = "open" | "linked" | "resolved";
 
 export interface InstallationRecord {
@@ -196,6 +208,16 @@ export interface DocumentChunkRecord extends ScopedRecord {
   text: string;
 }
 
+export interface DocumentEmbeddingRecord extends ScopedRecord {
+  documentId: string;
+  chunkId: string;
+  contentHash: string;
+  modelId: string;
+  dimensions: number;
+  vector: number[];
+  createdAt: string;
+}
+
 export interface DocumentationGapRecord extends ScopedRecord {
   question: string;
   status: DocumentationGapStatus;
@@ -226,6 +248,7 @@ export interface RuntimeRecords {
   widgets: WidgetRecord;
   documents: DocumentRecord;
   documentChunks: DocumentChunkRecord;
+  documentEmbeddings: DocumentEmbeddingRecord;
   documentationGaps: DocumentationGapRecord;
   tickets: TicketRecord;
   auditEvents: AuditEventRecord;
@@ -239,6 +262,12 @@ export interface RuntimeRepository {
   insertMarkdownDocumentUpload(
     input: InsertMarkdownDocumentUploadInput
   ): Promise<InsertMarkdownDocumentUploadResult>;
+  upsertDocumentEmbeddingIfDocumentActive(record: DocumentEmbeddingRecord): Promise<boolean>;
+  updateDocumentStatusIfActive(
+    installationId: string,
+    documentId: string,
+    status: Exclude<DocumentStatus, "deleted">
+  ): Promise<boolean>;
   upsertScoped<K extends Exclude<RuntimeCollectionName, "installations">>(
     collection: K,
     record: RuntimeRecords[K]
@@ -595,7 +624,9 @@ export class RuntimeFoundationService {
 
     return createDocumentIndexingReadinessSignal({
       indexedDocumentCount: documents.filter((document) => document.status === "indexed").length,
-      pendingDocumentCount: documents.filter((document) => document.status === "pending").length,
+      pendingDocumentCount: documents.filter(
+        (document) => document.status === "pending" || document.status === "indexing"
+      ).length,
       failedDocumentCount: documents.filter((document) => document.status === "failed").length
     });
   }
@@ -646,6 +677,7 @@ export class InMemoryRuntimeRepository implements RuntimeRepository {
     widgets: new Map(),
     documents: new Map(),
     documentChunks: new Map(),
+    documentEmbeddings: new Map(),
     documentationGaps: new Map(),
     tickets: new Map(),
     auditEvents: new Map()
@@ -759,6 +791,49 @@ export class InMemoryRuntimeRepository implements RuntimeRepository {
     this.#collections[collection].set(scopedRecordKey(record), structuredClone(record));
   }
 
+  async upsertDocumentEmbeddingIfDocumentActive(record: DocumentEmbeddingRecord): Promise<boolean> {
+    assertRequired(record.id, "record id");
+    assertRequired(record.installationId, "installation id");
+
+    this.#assertInstallationExists(record.installationId);
+
+    const document = this.#collections.documents.get(
+      `${record.installationId}:${record.documentId}`
+    );
+
+    if (!document || document.status === "deleted") {
+      return false;
+    }
+
+    this.#collections.documentEmbeddings.set(scopedRecordKey(record), structuredClone(record));
+    return true;
+  }
+
+  async updateDocumentStatusIfActive(
+    installationId: string,
+    documentId: string,
+    status: Exclude<DocumentStatus, "deleted">
+  ): Promise<boolean> {
+    assertRequired(installationId, "installation id");
+    assertRequired(documentId, "document id");
+
+    this.#assertInstallationExists(installationId);
+
+    const key = `${installationId}:${documentId}`;
+    const document = this.#collections.documents.get(key);
+
+    if (
+      !document ||
+      document.status === "deleted" ||
+      !canTransitionDocumentStatus(document.status, status)
+    ) {
+      return false;
+    }
+
+    this.#collections.documents.set(key, structuredClone({ ...document, status }));
+    return true;
+  }
+
   async listScoped<K extends ScopedCollectionName>(
     collection: K,
     installationId: string
@@ -814,4 +889,11 @@ function createRuntimeId(scope: "staff" | "invitation"): string {
 
 function createDocumentId(contentHash: string, existingDocumentCount: number): string {
   return `doc_${contentHash.slice(0, 12)}_${existingDocumentCount + 1}`;
+}
+
+function canTransitionDocumentStatus(
+  currentStatus: DocumentStatus,
+  nextStatus: Exclude<DocumentStatus, "deleted">
+): boolean {
+  return currentStatus !== "indexed" || nextStatus === "indexed";
 }

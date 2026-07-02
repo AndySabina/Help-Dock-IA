@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   InMemoryRuntimeRepository,
   RuntimeFoundationService,
+  type DocumentEmbeddingRecord,
   runtimeFoundationMigration,
   type InstallationRecord,
   type RuntimeTableName
@@ -29,6 +30,7 @@ describe("runtimeFoundationMigration", () => {
       "widgets",
       "documents",
       "document_chunks",
+      "document_embeddings",
       "documentation_gaps",
       "tickets",
       "audit_events"
@@ -111,6 +113,100 @@ describe("InMemoryRuntimeRepository", () => {
         createdAt: installation.createdAt
       })
     ).rejects.toThrow("installation inst_123 does not exist");
+  });
+
+  it("persists embeddings only while the owning document is active", async () => {
+    const repository = new InMemoryRuntimeRepository();
+    await repository.upsertInstallation(installation);
+    await repository.upsertScoped("documents", {
+      id: "doc_1",
+      installationId: installation.id,
+      filename: "guide.md",
+      contentHash: "hash_123",
+      byteLength: 12,
+      status: "pending",
+      createdAt: installation.createdAt
+    });
+
+    const embedding: DocumentEmbeddingRecord = {
+      id: "embedding_1",
+      installationId: installation.id,
+      documentId: "doc_1",
+      chunkId: "chunk_1",
+      contentHash: "chunk_hash_1",
+      modelId: "text-embedding-3-small",
+      dimensions: 3,
+      vector: [0.1, 0.2, 0.3],
+      createdAt: installation.createdAt
+    };
+
+    await expect(repository.upsertDocumentEmbeddingIfDocumentActive(embedding)).resolves.toBe(true);
+    await expect(repository.listScoped("documentEmbeddings", installation.id)).resolves.toEqual([
+      embedding
+    ]);
+    await repository.upsertScoped("documents", {
+      id: "doc_1",
+      installationId: installation.id,
+      filename: "guide.md",
+      contentHash: "hash_123",
+      byteLength: 12,
+      status: "deleted",
+      createdAt: installation.createdAt
+    });
+
+    await expect(
+      repository.upsertDocumentEmbeddingIfDocumentActive({ ...embedding, id: "embedding_2" })
+    ).resolves.toBe(false);
+  });
+
+  it("guards active document status updates from deleted or stale transitions", async () => {
+    const repository = new InMemoryRuntimeRepository();
+    await repository.upsertInstallation(installation);
+    await repository.upsertScoped("documents", {
+      id: "doc_1",
+      installationId: installation.id,
+      filename: "guide.md",
+      contentHash: "hash_123",
+      byteLength: 12,
+      status: "pending",
+      createdAt: installation.createdAt
+    });
+
+    await expect(
+      repository.updateDocumentStatusIfActive(installation.id, "doc_1", "indexing")
+    ).resolves.toBe(true);
+    await repository.upsertScoped("documents", {
+      id: "doc_indexed",
+      installationId: installation.id,
+      filename: "indexed.md",
+      contentHash: "hash_456",
+      byteLength: 12,
+      status: "indexed",
+      createdAt: installation.createdAt
+    });
+    await repository.upsertScoped("documents", {
+      id: "doc_deleted",
+      installationId: installation.id,
+      filename: "deleted.md",
+      contentHash: "hash_789",
+      byteLength: 12,
+      status: "deleted",
+      createdAt: installation.createdAt
+    });
+
+    await expect(
+      repository.updateDocumentStatusIfActive(installation.id, "doc_indexed", "failed")
+    ).resolves.toBe(false);
+    await expect(
+      repository.updateDocumentStatusIfActive(installation.id, "doc_deleted", "indexed")
+    ).resolves.toBe(false);
+    await expect(repository.listScoped("documents", installation.id)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "doc_1", status: "indexing" }),
+        expect.objectContaining({ id: "doc_indexed", status: "indexed" }),
+        expect.objectContaining({ id: "doc_deleted", status: "deleted" })
+      ])
+    );
   });
 });
 
