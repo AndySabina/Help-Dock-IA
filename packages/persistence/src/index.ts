@@ -372,6 +372,38 @@ export interface DeleteDocumentResult {
   indexingReadiness: DocumentIndexingReadinessSignal;
 }
 
+export interface PrepareDocumentEmbeddingJobsInput extends GetReadinessChecklistInput {
+  limit?: number;
+}
+
+export interface DocumentEmbeddingJob {
+  id: string;
+  installationId: string;
+  documentId: string;
+  chunkId: string;
+  contentHash: string;
+  text: string;
+}
+
+export interface EmbeddingResult {
+  modelId: string;
+  vector: number[];
+}
+
+export interface EmbeddingClient {
+  embed(texts: readonly string[]): Promise<EmbeddingResult[]>;
+}
+
+export interface RunDocumentEmbeddingBatchInput extends PrepareDocumentEmbeddingJobsInput {
+  client: EmbeddingClient;
+}
+
+export interface RunDocumentEmbeddingBatchResult {
+  jobs: DocumentEmbeddingJob[];
+  embeddings: DocumentEmbeddingRecord[];
+  indexingReadiness: DocumentIndexingReadinessSignal;
+}
+
 export interface AuthorizeRuntimeActionInput {
   role: StaffRole;
   action: FoundationAction;
@@ -599,7 +631,9 @@ export class RuntimeFoundationService {
     const deletionPlan = createDocumentDeletionPlan({
       documentId: input.documentId,
       chunks: chunks.map((chunk) => ({ id: chunk.id, documentId: chunk.documentId })),
-      embeddings: [],
+      embeddings: (await this.#repository.listScoped("documentEmbeddings", input.installationId))
+        .filter((embedding) => embedding.documentId === input.documentId)
+        .map((embedding) => ({ id: embedding.id, documentId: embedding.documentId })),
       requestedByRole: manager.role
     });
     const deletedDocument: DocumentRecord = { ...document, status: "deleted" };
@@ -631,8 +665,228 @@ export class RuntimeFoundationService {
     });
   }
 
+  async prepareDocumentEmbeddingJobs(
+    input: PrepareDocumentEmbeddingJobsInput
+  ): Promise<DocumentEmbeddingJob[]> {
+    await this.#assertAuthorizedStaff(input.installationId, input.requestedById, "readiness:run");
+    const limit = input.limit ?? Number.POSITIVE_INFINITY;
+
+    if (limit !== Number.POSITIVE_INFINITY && (!Number.isSafeInteger(limit) || limit < 1)) {
+      throw new Error("embedding job limit must be a positive integer");
+    }
+
+    const documents = await this.#repository.listScoped("documents", input.installationId);
+    const embeddableDocuments = documents
+      .filter(
+        (document) =>
+          document.status === "pending" ||
+          document.status === "indexing" ||
+          document.status === "failed"
+      )
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+    const chunks = await this.#repository.listScoped("documentChunks", input.installationId);
+    const embeddedChunkKeys = new Set(
+      (await this.#repository.listScoped("documentEmbeddings", input.installationId)).map(
+        (embedding) => `${embedding.chunkId}:${embedding.contentHash}`
+      )
+    );
+    const jobs: DocumentEmbeddingJob[] = [];
+
+    for (const document of embeddableDocuments) {
+      const documentJobs = chunks
+        .filter(
+          (chunk) =>
+            chunk.documentId === document.id &&
+            !embeddedChunkKeys.has(`${chunk.id}:${chunk.contentHash}`)
+        )
+        .sort((left, right) => left.ordinal - right.ordinal)
+        .map((chunk) => ({
+          id: `${chunk.id}:embedding-job`,
+          installationId: chunk.installationId,
+          documentId: document.id,
+          chunkId: chunk.id,
+          contentHash: chunk.contentHash,
+          text: chunk.text
+        }));
+
+      for (const job of documentJobs) {
+        if (jobs.length >= limit) {
+          break;
+        }
+        jobs.push(job);
+      }
+
+      if (jobs.length >= limit) {
+        break;
+      }
+    }
+
+    const selectedDocumentIds = new Set(jobs.map((job) => job.documentId));
+    const claimedDocumentIds = new Set<string>();
+
+    for (const document of embeddableDocuments) {
+      if (
+        selectedDocumentIds.has(document.id) &&
+        (await this.#repository.updateDocumentStatusIfActive(
+          input.installationId,
+          document.id,
+          "indexing"
+        ))
+      ) {
+        claimedDocumentIds.add(document.id);
+      }
+    }
+
+    const fullyEmbeddedDocumentIds = new Set(
+      embeddableDocuments
+        .filter((document) => !selectedDocumentIds.has(document.id))
+        .filter((document) => {
+          const documentChunks = chunks.filter((chunk) => chunk.documentId === document.id);
+
+          return documentChunks.every((chunk) =>
+            embeddedChunkKeys.has(`${chunk.id}:${chunk.contentHash}`)
+          );
+        })
+        .map((document) => document.id)
+    );
+
+    if (fullyEmbeddedDocumentIds.size > 0) {
+      await this.#settleEmbeddedDocumentStatuses(input.installationId, fullyEmbeddedDocumentIds);
+    }
+
+    return jobs.filter((job) => claimedDocumentIds.has(job.documentId));
+  }
+
+  async runDocumentEmbeddingBatch(
+    input: RunDocumentEmbeddingBatchInput
+  ): Promise<RunDocumentEmbeddingBatchResult> {
+    const jobs = await this.prepareDocumentEmbeddingJobs(input);
+
+    if (jobs.length === 0) {
+      return {
+        jobs,
+        embeddings: [],
+        indexingReadiness: await this.getDocumentIndexingReadinessSignal(input)
+      };
+    }
+
+    const documentIds = [...new Set(jobs.map((job) => job.documentId))];
+
+    try {
+      const results = await input.client.embed(jobs.map((job) => job.text));
+      if (results.length !== jobs.length) {
+        throw new Error("embedding client returned a different result count");
+      }
+
+      const embeddings = jobs.map((job, index) => {
+        const result = results[index];
+        if (!result || result.vector.length === 0) {
+          throw new Error("embedding client returned an empty vector");
+        }
+
+        return {
+          id: `${job.chunkId}:embedding:${result.modelId}`,
+          installationId: job.installationId,
+          documentId: job.documentId,
+          chunkId: job.chunkId,
+          contentHash: job.contentHash,
+          modelId: result.modelId,
+          dimensions: result.vector.length,
+          vector: result.vector,
+          createdAt: this.#clock.now().toISOString()
+        } satisfies DocumentEmbeddingRecord;
+      });
+
+      const activeDocumentIds = await this.#getNonDeletedDocumentIds(
+        input.installationId,
+        documentIds
+      );
+      const persistedEmbeddings: DocumentEmbeddingRecord[] = [];
+
+      for (const embedding of embeddings) {
+        if (
+          activeDocumentIds.has(embedding.documentId) &&
+          (await this.#repository.upsertDocumentEmbeddingIfDocumentActive(embedding))
+        ) {
+          persistedEmbeddings.push(embedding);
+        }
+      }
+      await this.#settleEmbeddedDocumentStatuses(
+        input.installationId,
+        new Set(persistedEmbeddings.map((embedding) => embedding.documentId))
+      );
+
+      return {
+        jobs,
+        embeddings: persistedEmbeddings,
+        indexingReadiness: await this.getDocumentIndexingReadinessSignal(input)
+      };
+    } catch (error) {
+      await this.#setDocumentStatuses(input.installationId, documentIds, "failed");
+      throw error;
+    }
+  }
+
   authorizeAction(input: AuthorizeRuntimeActionInput): RuntimeActionAuthorization {
     return { authorized: isActionAllowed(input.role, input.action) };
+  }
+
+  async #setDocumentStatuses(
+    installationId: string,
+    documentIds: readonly string[],
+    status: Exclude<DocumentStatus, "deleted">
+  ): Promise<void> {
+    const selectedIds = new Set(documentIds);
+    const documents = await this.#repository.listScoped("documents", installationId);
+
+    for (const document of documents) {
+      if (selectedIds.has(document.id) && document.status !== "deleted") {
+        await this.#repository.updateDocumentStatusIfActive(installationId, document.id, status);
+      }
+    }
+  }
+
+  async #getNonDeletedDocumentIds(
+    installationId: string,
+    documentIds: readonly string[]
+  ): Promise<Set<string>> {
+    const selectedIds = new Set(documentIds);
+    const documents = await this.#repository.listScoped("documents", installationId);
+
+    return new Set(
+      documents
+        .filter((document) => selectedIds.has(document.id) && document.status !== "deleted")
+        .map((document) => document.id)
+    );
+  }
+
+  async #settleEmbeddedDocumentStatuses(
+    installationId: string,
+    documentIds: ReadonlySet<string>
+  ): Promise<void> {
+    const documents = await this.#repository.listScoped("documents", installationId);
+    const chunks = await this.#repository.listScoped("documentChunks", installationId);
+    const embeddings = await this.#repository.listScoped("documentEmbeddings", installationId);
+
+    for (const document of documents) {
+      if (!documentIds.has(document.id) || document.status === "deleted") {
+        continue;
+      }
+
+      const documentChunks = chunks.filter((chunk) => chunk.documentId === document.id);
+      const embeddedChunkKeys = new Set(
+        embeddings
+          .filter((embedding) => embedding.documentId === document.id)
+          .map((embedding) => `${embedding.chunkId}:${embedding.contentHash}`)
+      );
+      const nextStatus = documentChunks.every((chunk) =>
+        embeddedChunkKeys.has(`${chunk.id}:${chunk.contentHash}`)
+      )
+        ? "indexed"
+        : "pending";
+
+      await this.#repository.updateDocumentStatusIfActive(installationId, document.id, nextStatus);
+    }
   }
 
   async #assertAuthorizedStaff(
@@ -663,6 +917,20 @@ export class RuntimeFoundationService {
     }
 
     return staffUser;
+  }
+}
+
+export class FakeEmbeddingClient implements EmbeddingClient {
+  constructor(
+    readonly modelId = "text-embedding-3-small",
+    readonly dimensions = 3
+  ) {}
+
+  async embed(texts: readonly string[]): Promise<EmbeddingResult[]> {
+    return texts.map((text) => ({
+      modelId: this.modelId,
+      vector: createFakeEmbeddingVector(text, this.dimensions)
+    }));
   }
 }
 
@@ -896,4 +1164,15 @@ function canTransitionDocumentStatus(
   nextStatus: Exclude<DocumentStatus, "deleted">
 ): boolean {
   return currentStatus !== "indexed" || nextStatus === "indexed";
+}
+
+function createFakeEmbeddingVector(text: string, dimensions: number): number[] {
+  if (!Number.isSafeInteger(dimensions) || dimensions < 1) {
+    throw new Error("fake embedding dimensions must be a positive integer");
+  }
+
+  return Array.from({ length: dimensions }, (_, index) => {
+    const charCode = text.charCodeAt(index % Math.max(text.length, 1)) || 0;
+    return Number(((charCode + text.length + index) / 1_000).toFixed(6));
+  });
 }
