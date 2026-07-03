@@ -385,6 +385,25 @@ export interface DocumentEmbeddingJob {
   text: string;
 }
 
+export interface EmbeddingResult {
+  modelId: string;
+  vector: number[];
+}
+
+export interface EmbeddingClient {
+  embed(texts: readonly string[]): Promise<EmbeddingResult[]>;
+}
+
+export interface RunDocumentEmbeddingBatchInput extends PrepareDocumentEmbeddingJobsInput {
+  client: EmbeddingClient;
+}
+
+export interface RunDocumentEmbeddingBatchResult {
+  jobs: DocumentEmbeddingJob[];
+  embeddings: DocumentEmbeddingRecord[];
+  indexingReadiness: DocumentIndexingReadinessSignal;
+}
+
 export interface AuthorizeRuntimeActionInput {
   role: StaffRole;
   action: FoundationAction;
@@ -738,8 +757,107 @@ export class RuntimeFoundationService {
     return jobs.filter((job) => claimedDocumentIds.has(job.documentId));
   }
 
+  async runDocumentEmbeddingBatch(
+    input: RunDocumentEmbeddingBatchInput
+  ): Promise<RunDocumentEmbeddingBatchResult> {
+    const jobs = await this.prepareDocumentEmbeddingJobs(input);
+
+    if (jobs.length === 0) {
+      return {
+        jobs,
+        embeddings: [],
+        indexingReadiness: await this.getDocumentIndexingReadinessSignal(input)
+      };
+    }
+
+    const documentIds = [...new Set(jobs.map((job) => job.documentId))];
+
+    try {
+      const results = await input.client.embed(jobs.map((job) => job.text));
+      if (results.length !== jobs.length) {
+        throw new Error("embedding client returned a different result count");
+      }
+
+      const embeddings = jobs.map((job, index) => {
+        const result = results[index];
+        if (!result || result.vector.length === 0) {
+          throw new Error("embedding client returned an empty vector");
+        }
+
+        return {
+          id: `${job.chunkId}:embedding:${result.modelId}`,
+          installationId: job.installationId,
+          documentId: job.documentId,
+          chunkId: job.chunkId,
+          contentHash: job.contentHash,
+          modelId: result.modelId,
+          dimensions: result.vector.length,
+          vector: result.vector,
+          createdAt: this.#clock.now().toISOString()
+        } satisfies DocumentEmbeddingRecord;
+      });
+
+      const activeDocumentIds = await this.#getNonDeletedDocumentIds(
+        input.installationId,
+        documentIds
+      );
+      const persistedEmbeddings: DocumentEmbeddingRecord[] = [];
+
+      for (const embedding of embeddings) {
+        if (
+          activeDocumentIds.has(embedding.documentId) &&
+          (await this.#repository.upsertDocumentEmbeddingIfDocumentActive(embedding))
+        ) {
+          persistedEmbeddings.push(embedding);
+        }
+      }
+      await this.#settleEmbeddedDocumentStatuses(
+        input.installationId,
+        new Set(persistedEmbeddings.map((embedding) => embedding.documentId))
+      );
+
+      return {
+        jobs,
+        embeddings: persistedEmbeddings,
+        indexingReadiness: await this.getDocumentIndexingReadinessSignal(input)
+      };
+    } catch (error) {
+      await this.#setDocumentStatuses(input.installationId, documentIds, "failed");
+      throw error;
+    }
+  }
+
   authorizeAction(input: AuthorizeRuntimeActionInput): RuntimeActionAuthorization {
     return { authorized: isActionAllowed(input.role, input.action) };
+  }
+
+  async #setDocumentStatuses(
+    installationId: string,
+    documentIds: readonly string[],
+    status: Exclude<DocumentStatus, "deleted">
+  ): Promise<void> {
+    const selectedIds = new Set(documentIds);
+    const documents = await this.#repository.listScoped("documents", installationId);
+
+    for (const document of documents) {
+      if (selectedIds.has(document.id) && document.status !== "deleted") {
+        await this.#repository.updateDocumentStatusIfActive(installationId, document.id, status);
+      }
+    }
+  }
+
+  async #getNonDeletedDocumentIds(
+    installationId: string,
+    documentIds: readonly string[]
+  ): Promise<Set<string>> {
+    const selectedIds = new Set(documentIds);
+    const documents = await this.#repository.listScoped("documents", installationId);
+
+    return new Set(
+      documents
+        .filter((document) => selectedIds.has(document.id) && document.status !== "deleted")
+        .map((document) => document.id)
+    );
   }
 
   async #settleEmbeddedDocumentStatuses(
@@ -799,6 +917,20 @@ export class RuntimeFoundationService {
     }
 
     return staffUser;
+  }
+}
+
+export class FakeEmbeddingClient implements EmbeddingClient {
+  constructor(
+    readonly modelId = "text-embedding-3-small",
+    readonly dimensions = 3
+  ) {}
+
+  async embed(texts: readonly string[]): Promise<EmbeddingResult[]> {
+    return texts.map((text) => ({
+      modelId: this.modelId,
+      vector: createFakeEmbeddingVector(text, this.dimensions)
+    }));
   }
 }
 
@@ -1032,4 +1164,15 @@ function canTransitionDocumentStatus(
   nextStatus: Exclude<DocumentStatus, "deleted">
 ): boolean {
   return currentStatus !== "indexed" || nextStatus === "indexed";
+}
+
+function createFakeEmbeddingVector(text: string, dimensions: number): number[] {
+  if (!Number.isSafeInteger(dimensions) || dimensions < 1) {
+    throw new Error("fake embedding dimensions must be a positive integer");
+  }
+
+  return Array.from({ length: dimensions }, (_, index) => {
+    const charCode = text.charCodeAt(index % Math.max(text.length, 1)) || 0;
+    return Number(((charCode + text.length + index) / 1_000).toFixed(6));
+  });
 }

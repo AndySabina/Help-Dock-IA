@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  FakeEmbeddingClient,
   InMemoryRuntimeRepository,
   RuntimeFoundationService,
   type DocumentEmbeddingRecord,
   type DocumentStatus,
+  type EmbeddingClient,
+  type EmbeddingResult,
   runtimeFoundationMigration,
   type InstallationRecord,
   type RuntimeTableName
@@ -975,6 +978,158 @@ describe("RuntimeFoundationService", () => {
     ]);
   });
 
+  it("stores fake embeddings and marks prepared documents indexed", async () => {
+    const repository = new InMemoryRuntimeRepository();
+    const service = createRuntimeService(repository);
+    await seedManager(service, repository);
+    const upload = await service.uploadMarkdownDocument({
+      installationId: installation.id,
+      requestedById: "staff_manager",
+      filename: "guide.md",
+      content: "# Help\n\nEmbed this chunk.\n\n## More help\n\nEmbed this one too."
+    });
+
+    const result = await service.runDocumentEmbeddingBatch({
+      installationId: installation.id,
+      requestedById: "staff_manager",
+      client: new FakeEmbeddingClient("fake-embedding-model", 4)
+    });
+
+    expect(result.jobs).toHaveLength(upload.chunks.length);
+    expect(result.embeddings).toHaveLength(upload.chunks.length);
+    expect(result.embeddings[0]).toMatchObject({
+      documentId: upload.document.id,
+      modelId: "fake-embedding-model",
+      dimensions: 4
+    });
+    expect(result.indexingReadiness).toEqual({ hasIndexedDocuments: true, indexingReady: true });
+    await expect(
+      repository.listScoped("documentEmbeddings", installation.id)
+    ).resolves.toHaveLength(upload.chunks.length);
+    await expect(repository.listScoped("documents", installation.id)).resolves.toMatchObject([
+      { id: upload.document.id, status: "indexed" }
+    ]);
+  });
+
+  it("marks prepared documents failed when embedding generation fails", async () => {
+    const repository = new InMemoryRuntimeRepository();
+    const service = createRuntimeService(repository);
+    await seedManager(service, repository);
+    const upload = await service.uploadMarkdownDocument({
+      installationId: installation.id,
+      requestedById: "staff_manager",
+      filename: "guide.md",
+      content: "# Help\n\nThis batch fails."
+    });
+
+    await expect(
+      service.runDocumentEmbeddingBatch({
+        installationId: installation.id,
+        requestedById: "staff_manager",
+        client: { embed: async () => Promise.reject(new Error("embedding provider unavailable")) }
+      })
+    ).rejects.toThrow("embedding provider unavailable");
+    await expect(repository.listScoped("documents", installation.id)).resolves.toMatchObject([
+      { id: upload.document.id, status: "failed" }
+    ]);
+    await expect(repository.listScoped("documentEmbeddings", installation.id)).resolves.toEqual([]);
+  });
+
+  it("does not persist embeddings for a document deleted while embedding is in flight", async () => {
+    const repository = new InMemoryRuntimeRepository();
+    const service = createRuntimeService(repository);
+    const client = new DeferredEmbeddingClient("fake-embedding-model", 4);
+    await seedManager(service, repository);
+    const upload = await service.uploadMarkdownDocument({
+      installationId: installation.id,
+      requestedById: "staff_manager",
+      filename: "guide.md",
+      content: "# Help\n\nDelete while embeddings are in flight."
+    });
+
+    const batch = service.runDocumentEmbeddingBatch({
+      installationId: installation.id,
+      requestedById: "staff_manager",
+      client
+    });
+    await client.requested;
+    await service.deleteDocument({
+      installationId: installation.id,
+      requestedById: "staff_manager",
+      documentId: upload.document.id
+    });
+    client.resolve();
+
+    await expect(batch).resolves.toMatchObject({ embeddings: [] });
+    await expect(repository.listScoped("documentEmbeddings", installation.id)).resolves.toEqual([]);
+    await expect(repository.listScoped("documents", installation.id)).resolves.toMatchObject([
+      { id: upload.document.id, status: "deleted" }
+    ]);
+  });
+
+  it("guards persistence when deletion happens after the post-embed active check", async () => {
+    const serviceRef: { current?: RuntimeFoundationService } = {};
+    const repository = new DeleteBeforeEmbeddingPersistRepository(async (documentId) => {
+      await serviceRef.current?.deleteDocument({
+        installationId: installation.id,
+        requestedById: "staff_manager",
+        documentId
+      });
+    });
+    const service = createRuntimeService(repository);
+    serviceRef.current = service;
+    await seedManager(service, repository);
+    const upload = await service.uploadMarkdownDocument({
+      installationId: installation.id,
+      requestedById: "staff_manager",
+      filename: "guide.md",
+      content: "# Help\n\nDelete after the active-document recheck."
+    });
+
+    await expect(
+      service.runDocumentEmbeddingBatch({
+        installationId: installation.id,
+        requestedById: "staff_manager",
+        client: new FakeEmbeddingClient("fake-embedding-model", 4)
+      })
+    ).resolves.toMatchObject({ embeddings: [] });
+    await expect(repository.listScoped("documentEmbeddings", installation.id)).resolves.toEqual([]);
+    await expect(repository.listScoped("documents", installation.id)).resolves.toMatchObject([
+      { id: upload.document.id, status: "deleted" }
+    ]);
+  });
+
+  it("does not downgrade indexed documents when a stale overlapping worker fails", async () => {
+    const repository = new InMemoryRuntimeRepository();
+    const service = createRuntimeService(repository);
+    const staleClient = new DeferredFailingEmbeddingClient("embedding provider unavailable");
+    await seedManager(service, repository);
+    const upload = await service.uploadMarkdownDocument({
+      installationId: installation.id,
+      requestedById: "staff_manager",
+      filename: "guide.md",
+      content: "# Help\n\nA stale worker must not downgrade indexed status."
+    });
+
+    const staleBatch = service.runDocumentEmbeddingBatch({
+      installationId: installation.id,
+      requestedById: "staff_manager",
+      client: staleClient
+    });
+    await staleClient.requested;
+    await service.runDocumentEmbeddingBatch({
+      installationId: installation.id,
+      requestedById: "staff_manager",
+      client: new FakeEmbeddingClient("fake-embedding-model", 4)
+    });
+    staleClient.reject();
+
+    await expect(staleBatch).rejects.toThrow("embedding provider unavailable");
+    await expect(repository.listScoped("documents", installation.id)).resolves.toMatchObject([
+      { id: upload.document.id, status: "indexed" }
+    ]);
+  });
+
   it("requires manager authorization before computing readiness", async () => {
     const repository = new InMemoryRuntimeRepository();
     const service = createRuntimeService(repository);
@@ -1013,6 +1168,18 @@ function createRuntimeService(repository: InMemoryRuntimeRepository): RuntimeFou
     repository,
     clock: { now: () => new Date(installation.createdAt) },
     createId: (scope) => `${scope}_generated`
+  });
+}
+
+async function seedManager(
+  service: RuntimeFoundationService,
+  repository: InMemoryRuntimeRepository
+): Promise<void> {
+  await repository.upsertInstallation(installation);
+  await service.bootstrapFirstManager({
+    installationId: installation.id,
+    email: "manager@example.com",
+    managerId: "staff_manager"
   });
 }
 
@@ -1064,6 +1231,83 @@ class DeleteDuringStatusUpdateRepository extends InMemoryRuntimeRepository {
     }
 
     return super.updateDocumentStatusIfActive(installationId, documentId, status);
+  }
+}
+
+class DeferredEmbeddingClient implements EmbeddingClient {
+  readonly requested: Promise<void>;
+  #resolveRequested!: () => void;
+  #resolveEmbeddings!: () => void;
+
+  constructor(
+    readonly modelId: string,
+    readonly dimensions: number
+  ) {
+    this.requested = new Promise((resolve) => {
+      this.#resolveRequested = resolve;
+    });
+  }
+
+  embed(texts: readonly string[]): Promise<EmbeddingResult[]> {
+    this.#resolveRequested();
+
+    return new Promise((resolve) => {
+      this.#resolveEmbeddings = () => {
+        resolve(
+          texts.map(() => ({
+            modelId: this.modelId,
+            vector: Array.from({ length: this.dimensions }, (_, index) => index + 1)
+          }))
+        );
+      };
+    });
+  }
+
+  resolve(): void {
+    this.#resolveEmbeddings();
+  }
+}
+
+class DeferredFailingEmbeddingClient implements EmbeddingClient {
+  readonly requested: Promise<void>;
+  #resolveRequested!: () => void;
+  #rejectEmbeddings!: (error: Error) => void;
+
+  constructor(readonly message: string) {
+    this.requested = new Promise((resolve) => {
+      this.#resolveRequested = resolve;
+    });
+  }
+
+  embed(): Promise<EmbeddingResult[]> {
+    this.#resolveRequested();
+
+    return new Promise((_, reject) => {
+      this.#rejectEmbeddings = reject;
+    });
+  }
+
+  reject(): void {
+    this.#rejectEmbeddings(new Error(this.message));
+  }
+}
+
+class DeleteBeforeEmbeddingPersistRepository extends InMemoryRuntimeRepository {
+  #deletedDocumentIds = new Set<string>();
+
+  constructor(readonly deleteBeforePersist: (documentId: string) => Promise<void>) {
+    super();
+  }
+
+  override async upsertDocumentEmbeddingIfDocumentActive(
+    record: DocumentEmbeddingRecord
+  ): Promise<boolean> {
+    if (!this.#deletedDocumentIds.has(record.documentId)) {
+      this.#deletedDocumentIds.add(record.documentId);
+      await this.deleteBeforePersist(record.documentId);
+    }
+
+    return super.upsertDocumentEmbeddingIfDocumentActive(record);
   }
 }
 
